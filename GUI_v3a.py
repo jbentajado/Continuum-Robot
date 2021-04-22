@@ -8,7 +8,7 @@ changes made:
 import time
 import smbus
 import math
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import serial
 import board
  
@@ -27,7 +27,7 @@ newy_position = 0
  
 ### HARDWARE ### 
 # I2C - IMU
-blossom_mpu6050 = MPU6050(board.I2C())           # base accel & gyro sensor
+# blossom_mpu6050 = MPU6050(board.I2C())           # base accel & gyro sensor
 # Power management registers - MPU6050
 # power_mgmt_1 = 0x6b
 # power_mgmt_2 = 0x6c
@@ -86,15 +86,18 @@ object_tracing_tab.pack(fill = 'both', expand = 1)
 pattern_tab.pack(fill = 'both', expand = 1)
 
 # designate the tabs
-my_notebook.add(mode_selection_tab, text = 'Mode Selection')
+
 my_notebook.add(manual_tab, text = 'Manual Mode')
+
+my_notebook.add(mode_selection_tab, text = 'Mode Selection')
+# my_notebook.add(manual_tab, text = 'Manual Mode')
 my_notebook.add(object_tracing_tab, text = 'Object Tracing Mode')
 my_notebook.add(pattern_tab, text = 'Pattern Mode')
 
 # hide the different modes
-my_notebook.hide(1)
-my_notebook.hide(2)
-my_notebook.hide(3)
+# my_notebook.hide(1)
+# my_notebook.hide(2)
+# my_notebook.hide(3)
 
 ### EVENT FUNCTIONS ###
 running = True # global flag
@@ -142,6 +145,7 @@ def blink():
 
 def run():
     if running:
+        
         # blossom - base
         round_to_decimal = 2
         blossom_accel = blossom_mpu6050.acceleration    # reads blossom accel, tuple
@@ -287,68 +291,6 @@ legend:
     h = height
     A = motor control tab
 '''
-# A - category labels (Position Input Motion Control, Analog Motion Control, IMU Readings)
-
-
-# A - position labels (target1, current1, target2, current2)
-
-# A - position input
-
-
-# A - dividers (1, 2, 3)
-# Aw_dividers =
-# Ah_dividers =
-
-# Ax_divider1 =
-# Ay_divider1 =
-
-# Ax_divider2 =
-# Ay_divider2 =
-
-# Ax_divider3 =
-# Ay_divider3 =
-
-# A - executing buttons (run, stop, home)
-# Aw_execute =
-# Ah_execute =
-
-# Ax_run =
-# Ay_run =
-
-# Ax_stop =
-# Ay_stop =
-
-# Ax_home =
-# Ay_home =
-
-# A - analog control (up, down, left, right)
-# Aw_analog =
-# Ah_analog =
-
-# Ax_up =
-# Ay_up =
-
-# Ax_down =
-# Ay_down =
-
-# Ax_left =
-# Ay_left =
-
-# Ax_right =
-# Ay_right =
-
-# A - IMU readings - x axis labels
-# Aw_axis =
-# Ah_axis =
-
-# Ax_xaxis =
-# Ay_xaxis =
-
-# Ax_yaxis =
-# Ay_yaxis =
-
-# Ax_zaxis =
-# Ay_zaxis =
 
 # A - IMU readings - updating labels
 # Aw_read_axis =
@@ -365,11 +307,13 @@ legend:
 
 # A - manual control widgets #
 
-# Seperator object
-# separator = ttk.Separator(x, orient='vertical')
-# separator.place(relx=0.47, rely=0, relwidth=0.2, relheight=1)
-
 # category labels (position, analog control, imu)
+
+exit_gui_from_manual = tk.Button(manual_tab, text = "Exit GUI", command = close_window)
+exit_gui_from_manual.place(relx = 0.1, rely = 0.9,
+                      relheight = 0.1, relwidth = 0.2)
+
+
 Aw_category = 0.2
 Aw_position_category = 0.3
 Aw_imu_category = 0.25
@@ -377,7 +321,7 @@ Ah_category = 0.05
 Ay_category = 0.2
 
 Ax_position_category = 0.025
-Ax_analog_category = 0.4
+Ax_analog_category = 0.49
 Ax_imu_category = 0.72
 
 Aposition_label = Label(manual_tab, text = 'Position Input Motion Control​', 
@@ -392,6 +336,35 @@ Aimu_label = Label(manual_tab, text = 'IMU Readings',
                        font = myFont)
 Aimu_label.place(relx = Ax_imu_category, rely = Ay_category, 
                      relwidth = Aw_imu_category, relheight = Ah_category)
+
+# separators #
+s = ttk.Style()
+s.configure('white.TSeparator', background = 'white')
+
+Aw_separator = 0.001
+Ah_separator = 0.7
+Ay_separator = 0.2
+
+Ax_separator1 = 0.34
+Ax_separator2 = 0.475
+Ax_separator3 = 0.705
+
+
+separator1 = ttk.Separator(manual_tab, orient = 'vertical',
+                           style = 'white.TSeparator')
+separator1.place(relx = Ax_separator1, rely = Ay_separator, 
+                 relwidth = Aw_separator, relheight = Ah_separator)
+
+separator2 = ttk.Separator(manual_tab, orient = 'vertical',
+                           style = 'white.TSeparator')
+separator2.place(relx = Ax_separator2, rely = Ay_separator, 
+                 relwidth = Aw_separator, relheight = Ah_separator)
+
+separator3 = ttk.Separator(manual_tab, orient = 'vertical',
+                           style = 'white.TSeparator')
+separator3.place(relx = Ax_separator3, rely = Ay_separator, 
+                 relwidth = Aw_separator, relheight = Ah_separator)
+
 
 # position labels (target1, current1, target2, current2)
 Aw_position = 0.15
@@ -426,32 +399,114 @@ Aw_position_in = 0.125
 Ah_position_in = 0.05
 Ax_position_in = 0.2
 
-
-# Ax_current1_in =
-# Ay_current1_in =
-
-# Ax_position2_in =
-# Ay_position2_in =
-
-# Ax_current2_in =
-# Ay_current2_in =
-
 enter_position_motor1 = Entry(manual_tab)#, textvariable = position_motor1_txt)
 enter_position_motor1.place(relx = Ax_position_in, rely = Ay_target1,
                             relwidth = Aw_position_in, relheight = Ah_position_in)
 
-encoder1_label = tk.Label(middle_frame, font = myFont, bg = 'white')
+encoder1_label = tk.Label(manual_tab, font = myFont, bg = 'white')
 encoder1_label.place(relx = Ax_position_in, rely = Ay_encoder1, 
-                     relwidth = Aw_position, relheight = a_relheight)
+                     relwidth = Aw_position_in, relheight = Ah_position_in)
 
 enter_position_motor1 = Entry(manual_tab)#, textvariable = position_motor1_txt)
-enter_position_motor1.place(relx = Ax_position_in, rely = Ay_target1,
+enter_position_motor1.place(relx = Ax_position_in, rely = Ay_target2,
                             relwidth = Aw_position_in, relheight = Ah_position_in)
 
-encoder1_label = tk.Label(middle_frame, font = myFont, bg = 'white')
-encoder1_label.place(relx = Ax_position_in, rely = Ay_encoder1, 
-                     relwidth = Aw_position, relheight = a_relheight)
+encoder1_label = tk.Label(manual_tab, font = myFont, bg = 'white')
+encoder1_label.place(relx = Ax_position_in, rely = Ay_encoder2, 
+                     relwidth = Aw_position_in, relheight = Ah_position_in)
 
+# executing buttons (run, stop, home)
+Aw_execute = 0.08
+Ah_execute = 0.1
+Ax_execute = 0.368
+
+Ay_run = 0.3
+Ay_stop = 0.45
+Ay_home = 0.6
+
+Arun_button = Button(manual_tab, text = 'Run',
+                    bg = 'green', font = myFont)
+                      #command = lambda: send_to_jevois_program('obstacle'))
+Arun_button.place (relx = Ax_execute, rely = Ay_run, 
+                  relwidth = Aw_execute, relheight = Ah_execute)
+Astop_button = Button(manual_tab, text = 'Stop',
+                    bg = 'red', font = myFont)
+                      #command = lambda: send_to_jevois_program('obstacle'))
+Astop_button.place (relx = Ax_execute, rely = Ay_stop, 
+                  relwidth = Aw_execute, relheight = Ah_execute)
+Ahome_button = Button(manual_tab, text = 'Home',
+                    bg = 'blue', font = myFont)
+                      #command = lambda: send_to_jevois_program('obstacle'))
+Ahome_button.place (relx = Ax_execute, rely = Ay_home, 
+                  relwidth = Aw_execute, relheight = Ah_execute)
+
+# analog control buttons (up, down, left, right)
+Aw_updown_analog = 0.04
+Ah_updown_analog = 0.1
+Aw_leftright_analog = 0.038
+Ah_leftright_analog = 0.1
+
+
+Aw_dpad_fill = 0.07
+Ah_dpad_fill = 0.1
+
+Ax_dpad_fill = 0.55
+Ax_updown = 0.57
+Ay_leftright = 0.4
+
+Ax_left = 0.528 #.043
+Ax_right = 0.613
+Ay_up = 0.3
+Ay_down = 0.5
+
+Aup_button = Button(manual_tab, text = '△',
+                    font = myFont)
+                      #command = lambda: send_to_jevois_program('obstacle'))
+Aup_button.place (relx = Ax_updown, rely = Ay_up, 
+                  relwidth = Aw_updown_analog, relheight = Ah_updown_analog)
+Aleftright_label = tk.Label(manual_tab, font = myFont)
+Aleftright_label.place(relx = Ax_dpad_fill, rely = Ay_leftright, 
+                       relwidth = Aw_dpad_fill, relheight = Ah_dpad_fill)
+
+Aleft_button = Button(manual_tab, text = '◁',
+                    font = myFont)
+                      #command = lambda: send_to_jevois_program('obstacle'))
+Aleft_button.place (relx = Ax_left, rely = Ay_leftright, 
+                    relwidth = Aw_leftright_analog, relheight = Ah_leftright_analog)
+
+Aright_button = Button(manual_tab, text = '▷',
+                       font = myFont)
+                      #command = lambda: send_to_jevois_program('obstacle'))
+Aright_button.place (relx = Ax_right, rely = Ay_leftright, 
+                     relwidth = Aw_leftright_analog, relheight = Ah_leftright_analog)
+Adown_button = Button(manual_tab, text = '▽',
+                      font = myFont)
+                      #command = lambda: send_to_jevois_program('obstacle'))
+Adown_button.place (relx = Ax_updown, rely = Ay_down, 
+                    relwidth = Aw_updown_analog, relheight = Ah_updown_analog)
+
+# imu axis labels
+Aw_axis = 0.15
+Ah_axis = Ah_position
+
+Ax_axis = 0.71
+Ay_xaxis = Ay_target1
+# Aw_axis =
+# Ah_axis =
+
+# Ax_xaxis =
+# Ay_xaxis =
+
+# Ax_yaxis =
+# Ay_yaxis =
+
+# Ax_zaxis =
+# Ay_zaxis =
+
+Axaxis_label = Label(manual_tab, text = 'x-axis:​', 
+                     font = myFont)
+Axaxis_label.place(relx = Ax_axis, rely = Ay_target1, 
+                   relwidth = Aw_axis, relheight = Ah_position)
 
 # MOTOR CONTROL, a stands for arduino
 # ac1_relx = 0.1       
@@ -512,12 +567,7 @@ encoder1_label.place(relx = Ax_position_in, rely = Ay_encoder1,
 # encoder2_label.place(relx = ac4_relx, rely = ar3_rely, 
 #                      relwidth = a_relwidth, relheight = a_relheight)
 
-# run_button = Button(manual_tab, text = "Run",
-#                     bg = 'green', font = myFont)
-#                       #command = lambda: send_to_jevois_program('obstacle'))
-# run_button.place (relx = 0.5, rely = ar4_rely, 
-#                   anchor = 'n',
-#                   relwidth = a_relwidth, relheight = a_relheight)
+
 
 # manual_exit_gui_button = tk.Button(manual_tab, text = "Exit GUI", 
 #                                    command = close_window)
