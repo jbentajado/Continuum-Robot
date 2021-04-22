@@ -113,22 +113,18 @@ def send_to_jevois_program(cmd):
     time.sleep(1)
     print('Message was sent to Jevois!')
   
-def move_motors(x, y):
+def trace_trace_move_motors(x, y):
     global newx_position, newy_position
     
-    pulse_position1 = str(x*2 + int(newx_position))
-    pulse_position2 = str(y*2 + int(newy_position))
+    x_to_arduino = b'<' + b'J' + b'x' + str(x).encode() + b'>'
+    y_to_arduino = b'<' + b'J' + b'y' + str(y).encode() + b'>'
+    print('move to position 1:', x_to_arduino)
+    print('move to position 2:', y_to_arduino)
     
-    newx_position = pulse_position1
-    newy_position = pulse_position2
-    
-    move_to_position1 = b'<' + b'p' + b'1' + pulse_position1.encode() + b'>'
-    move_to_position2 = b'<' + b'p' + b'2' + pulse_position2.encode() + b'>'
-    print('move to position 1:', move_to_position1)
-    print('move to position 2:', move_to_position2)
     serialread2 = ser2.readline()
     print(serialread2)
-    ser2.write(move_to_position1 + move_to_position2)
+    
+    ser2.write(x_to_arduino + y_to_arduino)
 
 # def round_float(imu_reading):
 #     round_to_decimal = 2
@@ -183,7 +179,7 @@ def run():
             jevois_reading = 'X coordinate: {} | Y coordinate: {}'.format(x,y)
             jevois_text.set(jevois_reading)
             if x != 0:
-                move_motors(x, y)
+                trace_move_motors(x, y)
                 # blink()
                 
     if not running:
@@ -191,8 +187,8 @@ def run():
         buttercup_text.set("buttercup IMU readings unavailable")
         bubbles_text.set("Bubbles IMU readings unavailable")
  
-    # after 0.5 s, call scanning again,  1/2 s = 500
-    root.after(500, run)
+    # after 1 s, call scanning again,  1/2 s = 500
+    root.after(1, run)
     
 def show_tab(mode_frame, mode_selection):
     my_notebook.add(mode_frame, text = mode_selection)
