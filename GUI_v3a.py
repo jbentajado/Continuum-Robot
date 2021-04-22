@@ -86,18 +86,15 @@ object_tracing_tab.pack(fill = 'both', expand = 1)
 pattern_tab.pack(fill = 'both', expand = 1)
 
 # designate the tabs
-
-my_notebook.add(manual_tab, text = 'Manual Mode')
-
 my_notebook.add(mode_selection_tab, text = 'Mode Selection')
-# my_notebook.add(manual_tab, text = 'Manual Mode')
+my_notebook.add(manual_tab, text = 'Manual Mode')
 my_notebook.add(object_tracing_tab, text = 'Object Tracing Mode')
 my_notebook.add(pattern_tab, text = 'Pattern Mode')
 
 # hide the different modes
-# my_notebook.hide(1)
-# my_notebook.hide(2)
-# my_notebook.hide(3)
+my_notebook.hide(1)
+my_notebook.hide(2)
+my_notebook.hide(3)
 
 ### EVENT FUNCTIONS ###
 running = True # global flag
@@ -208,22 +205,23 @@ def close_tab(i_tab):
 # GLOBAL MODE TAB WIDGET SIZING #
 title_rel_height = 0.05
 title_rel_width = 0.95
-close_tab_relx = 0.05
-close_tab_rely = 0.9
+close_tab_relx = 0.98
+# close_tab_rely = 0.9
 close_rel_height = 0.05
-close_rel_width = 0.05
+close_rel_width = 0.02
+tab_title_rely = 0.05
 
 #---# MODE SELECTION TAB #---#
 
 # DIMENSIONS
 mode_sel_rely = 0.2
-mode_sel_relheight = 0.05
+mode_sel_relheight = 0.1
 mode_sel_relwidth = 0.2
 
 # WIDGETS
 select_mode_label = Label(mode_selection_tab, text = 'Select Control Mode:', 
                           font = myFont, bg = 'white')
-select_mode_label.place(relx = 0.5,
+select_mode_label.place(relx = 0.5, rely = tab_title_rely,
                         relheight = title_rel_height, relwidth = title_rel_width,
                         anchor = 'n')
 
@@ -266,21 +264,21 @@ exit_gui_button = tk.Button(mode_selection_tab, text = "Exit GUI", command = clo
 exit_gui_button.place(rely = 0.9,
                       relheight = 0.1, relwidth = 0.2)
 
-#---# MANUAL MODE TAB #---#
+#---# A, MANUAL MODE TAB #---#
 manual_title = Label(manual_tab, text = 'Manual Mode',
                           font = myFont, bg = 'white')
-manual_title.place(relx = 0.5,
+manual_title.place(relx = 0.5, rely = tab_title_rely,
                    relheight = title_rel_height, relwidth = title_rel_width,
                    anchor = 'n')
-close_manual = Button(manual_tab, text = 'X',
+close_manual_tab = Button(manual_tab, text = 'X',
                       fg = 'white', bg = 'red',
                       font = myFont,
                       command = lambda: close_tab(1))
-close_manual.place(relx = close_tab_relx, rely = close_tab_rely,
+close_manual_tab.place(relx = close_tab_relx, #rely = close_tab_rely,
                    relheight = close_rel_height, relwidth = close_rel_width)
-
-
-# A, MANUAL CONTROL #
+exit_gui_from_manual = tk.Button(manual_tab, text = "Exit GUI", command = close_window)
+exit_gui_from_manual.place(relx = 0.02, rely = 0.88,
+                      relheight = 0.1, relwidth = 0.2)
 
 # A - control dimensions #
 '''
@@ -292,27 +290,7 @@ legend:
     A = motor control tab
 '''
 
-# A - IMU readings - updating labels
-# Aw_read_axis =
-# Ah_read_axis =
-
-# Ax_read_xaxis =
-# Ay_read_xaxis =
-
-# Ax_read_yaxis =
-# Ay_read_yaxis =
-
-# Ax_read_zaxis =
-# Ay_rad_zaxis =
-
-# A - manual control widgets #
-
 # category labels (position, analog control, imu)
-
-exit_gui_from_manual = tk.Button(manual_tab, text = "Exit GUI", command = close_window)
-exit_gui_from_manual.place(relx = 0.1, rely = 0.9,
-                      relheight = 0.1, relwidth = 0.2)
-
 
 Aw_category = 0.2
 Aw_position_category = 0.3
@@ -342,7 +320,7 @@ s = ttk.Style()
 s.configure('white.TSeparator', background = 'white')
 
 Aw_separator = 0.001
-Ah_separator = 0.7
+Ah_separator = 0.5
 Ay_separator = 0.2
 
 Ax_separator1 = 0.34
@@ -364,7 +342,6 @@ separator3 = ttk.Separator(manual_tab, orient = 'vertical',
                            style = 'white.TSeparator')
 separator3.place(relx = Ax_separator3, rely = Ay_separator, 
                  relwidth = Aw_separator, relheight = Ah_separator)
-
 
 # position labels (target1, current1, target2, current2)
 Aw_position = 0.15
@@ -486,129 +463,78 @@ Adown_button.place (relx = Ax_updown, rely = Ay_down,
                     relwidth = Aw_updown_analog, relheight = Ah_updown_analog)
 
 # imu axis labels
-Aw_axis = 0.15
+Aw_axis = 0.06
 Ah_axis = Ah_position
-
-Ax_axis = 0.71
-Ay_xaxis = Ay_target1
-# Aw_axis =
-# Ah_axis =
-
-# Ax_xaxis =
-# Ay_xaxis =
-
-# Ax_yaxis =
-# Ay_yaxis =
-
-# Ax_zaxis =
-# Ay_zaxis =
+Ax_axis = 0.72
 
 Axaxis_label = Label(manual_tab, text = 'x-axis:​', 
                      font = myFont)
 Axaxis_label.place(relx = Ax_axis, rely = Ay_target1, 
                    relwidth = Aw_axis, relheight = Ah_position)
 
-# MOTOR CONTROL, a stands for arduino
-# ac1_relx = 0.1       
-# ac2_relx = 0.3        
-# ac3_relx = 0.5        
-# ac4_relx = 0.7      
+Ayaxis_label = Label(manual_tab, text = 'y-axis:​', 
+                     font = myFont)
+Ayaxis_label.place(relx = Ax_axis, rely = Ay_encoder1, 
+                   relwidth = Aw_axis, relheight = Ah_position)
 
-# ar1_rely = 0.1       
-# ar2_rely = 0.225
-# ar3_rely = 0.35       
-# ar4_rely = 0.475
-  
+Azaxis_label = Label(manual_tab, text = 'z-axis:​', 
+                     font = myFont)
+Azaxis_label.place(relx = Ax_axis, rely = Ay_target2, 
+                   relwidth = Aw_axis, relheight = Ah_position)
 
-# ac0_relwidth = 0.15   
-# a_relheight = 0.075   
-# a_relwidth = 0.15     
+# imu axis readings
+Aw_read_axis = 0.162
+Ah_read_axis = Ah_position
+Ax_read_axis = 0.81
 
+A_ximu_txt = StringVar()
+A_ximu_txt.set('X-Axis Data')
+A_ximu_output = Label(manual_tab, textvariable = A_ximu_txt)
+A_ximu_output.place(relx = Ax_read_axis, rely = Ay_target1,
+                   relwidth = Aw_read_axis, relheight = Ah_position)
 
-# encoder_label = Label(manual_tab, text = 'encoder feedback', font = myFont)
+A_yimu_txt = StringVar()
+A_yimu_txt.set('Y-Axis Data')
+A_yimu_output = Label(manual_tab, textvariable = A_yimu_txt)
+A_yimu_output.place(relx = Ax_read_axis, rely = Ay_encoder1,
+                   relwidth = Aw_read_axis, relheight = Ah_position)
+A_zimu_txt = StringVar()
+A_zimu_txt.set('Z-Axis Data')
+A_zimu_output = Label(manual_tab, textvariable = A_zimu_txt)
+A_zimu_output.place(relx = Ax_read_axis, rely = Ay_target2,
+                   relwidth = Aw_read_axis, relheight = Ah_position)
 
-# encoder_label.place(relx = ac4_relx, rely = ar1_rely, 
-#                     relwidth = a_relwidth, relheight = a_relheight)
-
-# motor1_label = Label(manual_tab, text = 'motor 1:', font = myFont)
-# motor1_label.place(relx = ac1_relx, rely = ar2_rely, 
-#                    relwidth = ac0_relwidth, relheight = a_relheight)
-
-# motor2_label = Label(manual_tab, text = 'motor 2:', font = myFont)
-# motor2_label.place(relx = ac1_relx, rely = ar3_rely, 
-#                    relwidth = ac0_relwidth, relheight = a_relheight)
-
-# position_motor1_txt = StringVar()
-# position_motor1_txt.set('')
-# position_motor2_txt = StringVar()
-# position_motor2_txt.set('')
-
-
-# position_motor1_txt.trace("w",lambda *args: print (position_motor1_txt.get()))
-# position_motor2_txt.trace("w",lambda *args: print (position_motor2_txt.get()))
-
-# current_position_motor1 = tk.Label(manual_tab, textvariable = position_motor1_txt, 
-#                                    font = myFont, bg = 'white')
-# current_position_motor1.place(relx = ac3_relx, rely = ar2_rely, 
-#                               relwidth = a_relwidth, relheight = a_relheight)
-
-# current_position_motor2 = tk.Label(manual_tab, textvariable = position_motor2_txt, 
-#                                    font = myFont, bg = 'white')
-# current_position_motor2.place(relx = ac3_relx, rely = ar3_rely, 
-#                               relwidth = a_relwidth, relheight = a_relheight)
-
-# encoder1_label = tk.Label(manual_tab, font = myFont, bg = 'white')
-#                       #command = lambda: send_to_jevois_program('obstacle'))
-# encoder1_label.place(relx = ac4_relx, rely = ar2_rely, 
-#                      relwidth = a_relwidth, relheight = a_relheight)
-
-# encoder2_label = tk.Label(manual_tab, font = myFont, bg = 'white')
-#                       #command = lambda: send_to_jevois_program('obstacle'))
-# encoder2_label.place(relx = ac4_relx, rely = ar3_rely, 
-#                      relwidth = a_relwidth, relheight = a_relheight)
-
-
-
-# manual_exit_gui_button = tk.Button(manual_tab, text = "Exit GUI", 
-#                                    command = close_window)
-# manual_exit_gui_button.place(rely = 0.9,
-#                              relwidth = 0.2, relheight = 0.1)
-
-# # OBJECT TRACING TAB #
-# object_title = Label(object_tracing_tab, text = 'Object Tracing Mode',
-#                      font = myFont, bg = 'white')
-# object_title.place(relx = 0.5,
-#                    relheight = title_rel_height, relwidth = title_rel_width,
-#                    anchor = 'n')
-# close_obj_tracing = Button(object_tracing_tab, text = 'X',
-#                            fg = 'white', bg = 'red',
-#                            font = myFont,
-#                            command = lambda: close_tab(2))
-# close_obj_tracing.place(relx = close_tab_relx,
-#                         relheight = close_rel_height, relwidth = close_rel_width)
-
-# object_exit_gui_button = tk.Button(object_tracing_tab, text = "Exit GUI", 
-#                                    command = close_window)
-# object_exit_gui_button.place(rely = 0.9,
-#                              relwidth = 0.2, relheight = 0.1)
+#---# B, OBJECT TRACKING TAB #---#
+object_title = Label(object_tracing_tab, text = 'Object Tracing Mode',
+                     font = myFont, bg = 'white')
+object_title.place(relx = 0.5, rely = tab_title_rely,
+                   relheight = title_rel_height, relwidth = title_rel_width,
+                   anchor = 'n')
+close_object_tab = Button(object_tracing_tab, text = 'X',
+                      fg = 'white', bg = 'red',
+                      font = myFont,
+                      command = lambda: close_tab(2))
+close_object_tab.place(relx = close_tab_relx, #rely = close_tab_rely,
+                   relheight = close_rel_height, relwidth = close_rel_width)
+exit_gui_from_object = tk.Button(object_tracing_tab, text = "Exit GUI", command = close_window)
+exit_gui_from_object.place(relx = 0.02, rely = 0.88,
+                      relheight = 0.1, relwidth = 0.2)
 
 # # PATTERN TAB #
-# pattern_title = Label(pattern_tab, text = 'Pattern Mode',
-#                      font = myFont, bg = 'white')
-# pattern_title.place(relx = 0.5,
-#                     relheight = title_rel_height, relwidth = title_rel_width,
-#                     anchor = 'n')
-# close_pattern = Button(pattern_tab, text = 'X',
-#                        fg = 'white', bg = 'red',
-#                        font = myFont,
-#                        command = lambda: close_tab(3))
-# close_pattern.place(relx = close_tab_relx,
-#                     relheight = close_rel_height, relwidth = close_rel_width)
-
-# pattern_exit_gui_button = tk.Button(pattern_tab, text = "Exit GUI", 
-#                                    command = close_window)
-# pattern_exit_gui_button.place(rely = 0.9,
-#                              relwidth = 0.2, relheight = 0.1)
+pattern_title = Label(pattern_tab, text = 'Pattern Mode',
+                     font = myFont, bg = 'white')
+pattern_title.place(relx = 0.5, rely = tab_title_rely, 
+                    relheight = title_rel_height, relwidth = title_rel_width,
+                    anchor = 'n')
+close_pattern_tab = Button(pattern_tab, text = 'X',
+                      fg = 'white', bg = 'red',
+                      font = myFont,
+                      command = lambda: close_tab(3))
+close_pattern_tab.place(relx = close_tab_relx, #rely = close_tab_rely,
+                   relheight = close_rel_height, relwidth = close_rel_width)
+exit_gui_from_pattern = tk.Button(pattern_tab, text = "Exit GUI", command = close_window)
+exit_gui_from_pattern.place(relx = 0.02, rely = 0.88,
+                      relheight = 0.1, relwidth = 0.2)
 
 '''
 start_button = Button(root, text = 'Display IMU Reading',
@@ -735,38 +661,7 @@ stepper_enable_button.place(relx = stepper_enable_relx, rely = ar6_rely,
 
 
 ## IMU Readings ##
-imu_label = tk.Label(lower_frame, text = 'IMU Readings',
-                     font = myFont)
-imu_label.place(relx = 0.5, 
-                relwidth = 0.25, relheight = 0.17,
-                anchor = 'n')
 
-imu_accel_label = tk.Label(lower_frame, text = 'Acceleration',
-                           font = myFont)
-imu_accel_label.place(relx = 0.25, rely = 0.22,
-                      relwidth = 0.3, relheight = 0.15)
-
-imu_angular_velocity_label = tk.Label(lower_frame, text = 'Angular Velocity',
-                                      font = myFont)
-imu_angular_velocity_label.place(relx = 0.6, rely = 0.22, 
-                                 relwidth = 0.3, relheight = 0.15)
-
-base_imu_label = tk.Label(lower_frame, text = 'base IMU readings:',
-                          font = myFont, bg = 'white')
-base_imu_label.place(rely = 0.4,
-                     relwidth = 0.2, relheight = 0.15)
-
-blossom_Atext = StringVar()
-blossom_Atext.set("Base Acceleration Data")
-blossom_Aoutput = Label(lower_frame, textvariable = blossom_Atext)
-blossom_Aoutput.place(relx = 0.25, rely = 0.4,
-                      relheight = 0.15, relwidth = 0.3)
-
-blossom_Gtext = StringVar()
-blossom_Gtext.set("Base Angular Velocity Data")
-blossom_Goutput = Label(lower_frame, textvariable = blossom_Gtext)
-blossom_Goutput.place(relx = 0.6, rely = 0.4,
-                      relheight = 0.15, relwidth = 0.3)
 '''
 
 # root.after(1000, run) # after 1 s, call scanning
