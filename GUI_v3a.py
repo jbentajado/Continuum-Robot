@@ -38,16 +38,16 @@ newy_position = 0
 # address = 0x68  # This is the address value read via the i2cdetect command
 
 # Serial - Jevois
-# jevois_baudrate= 115200
-# com_port1 = '/dev/serial0'
-# ser1 = serial.Serial(port = com_port1, baudrate = jevois_baudrate,
-#                     parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
-#                     bytesize=serial.EIGHTBITS, timeout=1)
+jevois_baudrate = 115200
+com_port1 = '/dev/serial0'
+ser1 = serial.Serial(port = com_port1, baudrate = jevois_baudrate,
+                     parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
+                     bytesize=serial.EIGHTBITS, timeout=1)
 
 # Serial - Arduino
-# arduino_baudrate = 115200 
-# com_port2 = '/dev/ttyACM0'    # under the wifi usb
-# ser2 = serial.Serial(port = com_port2, baudrate = arduino_baudrate, timeout = 0)    # my port = '/dev/ttyACM0'
+arduino_baudrate = 115200 
+com_port2 = '/dev/ttyACM0'    # under the wifi usb
+ser2 = serial.Serial(port = com_port2, baudrate = arduino_baudrate, timeout = 0)    # my port = '/dev/ttyACM0'
 
 ### GUI DEFINITIONS ###
 HEIGHT = 500   # pixels
