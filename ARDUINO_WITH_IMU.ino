@@ -212,7 +212,7 @@ void loop()
     prevTime2 = currTime2;
     // ERROR ---------------------------------------------------------
     int e1 = Total_angle[0] - target1;
-    int e2 = Total_angle[0] - target2;
+    int e2 = Total_angle[1] - target2;
     // DERIVATIVE ----------------------------------------------------
     float dedt1 = (e1 - eprev1) / (deltaT1);
     float dedt2 = (e2 - eprev2) / (deltaT2);
