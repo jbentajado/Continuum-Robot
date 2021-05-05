@@ -1,19 +1,20 @@
 # GUI_v3a.py
 '''
 changes made:
-- add kalman filter this one is hard
+- calculate pitch and roll
+    source: https://roboticsclubiitk.github.io/2017/12/21/Beginners-Guide-to-IMU.html
+- add complimentary filter
 - add tabs
 '''
 
 import time
 import smbus
-import math
-# import matplotlib.pyplot as plt
 import serial
 import board
  
 from tkinter import *
 from tkinter import ttk
+from math import *
 import tkinter as tk
 import tkinter.font
 import tkinter.messagebox as MessageBox
@@ -22,32 +23,59 @@ RPi.GPIO.setmode(RPi.GPIO.BCM)
 
 from adafruit_mpu6050 import MPU6050
 
+radToDeg = 180/pi
+
 newx_position = 0 
 newy_position = 0   
  
 ### HARDWARE ### 
 # I2C - IMU
-# blossom_mpu6050 = MPU6050(board.I2C())           # base accel & gyro sensor
-# Power management registers - MPU6050
-# power_mgmt_1 = 0x6b
-# power_mgmt_2 = 0x6c
- 
-# gyro_scale = 131.0
-# accel_scale = 16384.0
- 
-# address = 0x68  # This is the address value read via the i2cdetect command
+# mpu6050 = MPU6050(board.I2C())           # base accel & gyro sensor
 
+# Setup
+bus = smbus.SMBus(1)
+address = 0x68
+
+# From setUp()
+accHex = 0
+gyroHex = 0
+
+accScaleFactor = 16384.0
+gyroScaleFactor = 131.0
+
+# activate the mpu6050
+bus.write_byte_data(address, 0x6B, 0x00)
+
+# configure the accelerometer
+bus.write_byte_data(address, 0x1C, accHex)
+
+# configure the gyroscope
+bus.write_byte_data(address, 0x1B, gyroHex)
+
+# From gyroscope calibration - offsets
+gyroXcal = -322.1
+gyroYcal = -354.6
+gyroZcal = -223.3
+
+dtTimer = 0
+gyroRoll = 0
+gyroPitch = 0
+gyroYaw = 0
+
+roll = 0
+pitch = 0
+yaw = 0
 # Serial - Jevois
-jevois_baudrate = 115200
-com_port1 = '/dev/serial0'
-ser1 = serial.Serial(port = com_port1, baudrate = jevois_baudrate,
-                     parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
-                     bytesize=serial.EIGHTBITS, timeout=1)
+# jevois_baudrate = 115200
+# com_port1 = '/dev/serial0'
+# ser1 = serial.Serial(port = com_port1, baudrate = jevois_baudrate,
+#                      parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
+#                      bytesize=serial.EIGHTBITS, timeout=1)
 
 # Serial - Arduino
-arduino_baudrate = 115200 
-com_port2 = '/dev/ttyACM0'    # under the wifi usb
-ser2 = serial.Serial(port = com_port2, baudrate = arduino_baudrate, timeout = 0)    # my port = '/dev/ttyACM0'
+# arduino_baudrate = 115200 
+# com_port2 = '/dev/ttyACM0'    # under the wifi usb
+# ser2 = serial.Serial(port = com_port2, baudrate = arduino_baudrate, timeout = 0)    # my port = '/dev/ttyACM0'
 
 ### GUI DEFINITIONS ###
 HEIGHT = 500   # pixels
@@ -61,29 +89,35 @@ canvas.pack
 
 my_notebook = ttk.Notebook(root)
 my_notebook.pack(pady = 0)
+BG = '#222222'
+LABEL_BG = '#ffefdb'
+LITE_BG = '#829AB1'
+WITE_BG = '#F0F4F8'
+DARK_BG = '#334E68'
 
-myFont = tkinter.font.Font(family = 'Helvetica',
-                           size = 12,
-                           weight = "bold")
+lite_widget_font = tkinter.font.Font(family='Helvetica', size=12,
+                                     weight="bold")
+dark_widget_font = tkinter.font.Font(family = 'Helvetica', size = 12,
+                                     weight = "bold")
 
 # define what is inside the tabs using frames
-mode_selection_tab = Frame(my_notebook, bd = 10,
-                             width = WIDTH, height = HEIGHT, 
-                             bg = '#80c1ff')
-manual_tab = Frame(my_notebook, bd = 10,
-                          width = WIDTH, height = HEIGHT, 
-                          bg = '#80c1ff')
-object_tracing_tab = Frame(my_notebook, bd = 10,
-                                  width = WIDTH, height = HEIGHT,
-                                  bg = '#80c1ff')
-pattern_tab= Frame(my_notebook, bd = 10,
-                           width = WIDTH, height = HEIGHT,
-                           bg = '#80c1ff')
+mode_selection_tab = Frame(my_notebook, bd=10,
+                             width=WIDTH, height=HEIGHT, 
+                             bg=BG)
+manual_tab = Frame(my_notebook, bd=10,
+                          width=WIDTH, height=HEIGHT, 
+                          bg=BG)
+object_tracing_tab = Frame(my_notebook, bd=10,
+                                  width=WIDTH, height=HEIGHT,
+                                  bg=BG)
+pattern_tab = Frame(my_notebook, bd=10,
+                           width=WIDTH, height=HEIGHT,
+                           bg=BG)
 
-mode_selection_tab.pack(fill = 'both', expand = 1)
-manual_tab.pack(fill = 'both', expand = 1)
-object_tracing_tab.pack(fill = 'both', expand = 1)
-pattern_tab.pack(fill = 'both', expand = 1)
+mode_selection_tab.pack(fill='both', expand=1)
+manual_tab.pack(fill='both', expand=1)
+object_tracing_tab.pack(fill='both', expand=1)
+pattern_tab.pack(fill='both', expand=1)
 
 # designate the tabs
 my_notebook.add(mode_selection_tab, text = 'Mode Selection')
@@ -113,6 +147,17 @@ def send_to_jevois_program(cmd):
     time.sleep(1)
     print('Message was sent to Jevois!')
   
+def manual_move_motorse(motor1, motor2):
+    move_motor1 = b'<' + b'1' + b'p' + motor1.get().encode() + b'>'
+    move_motor2 = b'<' + b'2' + b'p' + motor2.get().encode() + b'>'
+    print('move to position 1:', move_motor1)
+    print('move to position 2:', move_motor2)
+    
+    # serialread2 = ser2.readline()
+    # print(serialread2)
+    
+    # ser2.write(x_to_arduino + y_to_arduino)
+
 def trace_trace_move_motors(x, y):
     global newx_position, newy_position
     
@@ -126,61 +171,185 @@ def trace_trace_move_motors(x, y):
     
     ser2.write(x_to_arduino + y_to_arduino)
 
-# def round_float(imu_reading):
-#     round_to_decimal = 2
-#     round_float.imu_reading = round(imu_reading, round_to_decimal)
-#     # return imu_reading
-#     # print("imu reading:", imu_reading)
+def set_arduino_mode(trigger):
+    send_char = trigger
+    print(send_char)
+    # ser2.write(send_char)
+    
+# def get_raw_data():
+#     # read the accelerometer and gyroscope
+#         read_accel = mpu6050.acceleration    # reads accel, tuple
+#         read_gyro = mpu6050.gyro             # reads gyro, tuple
+
+#         # unpack the accel/gyro tuples
+#         ax, ay, az = read_accel       # unpacks tuple
+#         gx, gy, gz = read_gyro   
+        
+        
+#         # ax = round(ax, round_to_decimal)                   # rounds float to 2 decimal places
+#         # ay = round(ay, round_to_decimal)
+#         # az = round(az, round_to_decimal)
+        
+#         # gx = round(gx, round_to_decimal)
+#         # gy = round(gy, round_to_decimal)
+#         # gz = round(gyroZ, round_to_decimal)
+        
+        # print("Get Raw Data")
+        # print("\tgx: " + str(round(gx,1)))
+        # print("\tgy: " + str(round(gy,1)))
+        # print("\tgz: " + str(round(gz,1)) + "\n")
+        
+        # print("\tax: " + str(round(ax,1)))
+        # print("\tay: " + str(round(ay,1)))
+        # print("\taz: " + str(round(az,1)))
+        
+def eightBit2sixteenBit(reg):
+        # Reads high and low 8 bit values and shifts them into 16 bit
+        h = bus.read_byte_data(address, reg)
+        l = bus.read_byte_data(address, reg+1)
+        val = (h << 8) + l
+
+        # Make 16 bit unsigned value to signed value (0 to 65535) to (-32768 to +32767)
+        if (val >= 0x8000):
+            return -((65535 - val) + 1)
+        else:
+            return val
+
+
+def show_tab(mode_frame, mode_selection, mode):
+    my_notebook.add(mode_frame, text = mode_selection)
+    set_arduino_mode(mode)
+    my_notebook.tab(0, state='disabled')
+    
+def close_tab(i_tab, mode):
+    my_notebook.hide(i_tab)
+    set_arduino_mode(mode)
+    
+    my_notebook.tab(0, state='normal')
+    my_notebook.select(0)
 
 def blink():
     y = b'<'+ b'B'+ b'>'
     ser2.write(y)
 
 def run():
+    global gyroRoll, gyroPitch, gyroYaw, roll, pitch, yaw
     if running:
-        
-        # blossom - base
-        round_to_decimal = 2
-        blossom_accel = blossom_mpu6050.acceleration    # reads blossom accel, tuple
-        blossom_gyro = blossom_mpu6050.gyro             # reads blossom gyro, tuple
-        accel_x, accel_y, accel_z = blossom_accel       # unpacks tuple
-        gyro_x, gyro_y, gyro_z = blossom_gyro           
-        
-        accel_x = round(accel_x, round_to_decimal)                   # rounds float to 2 decimal places
-        accel_y = round(accel_y, round_to_decimal)
-        accel_z = round(accel_z, round_to_decimal)
-        
-        gyro_x = round(gyro_x, round_to_decimal)
-        gyro_y = round(gyro_y, round_to_decimal)
-        gyro_z = round(gyro_z, round_to_decimal)
 
-        blossom_accel_string = "Acceleration: X:{0:7.2f}, Y:{1:7.2f}, Z:{2:7.2f} m/s^2".format(*blossom_accel)
-        blossom_gyro_string = "Amngular Velocity: X:{0:7.2f}, Y:{1:7.2f}, Z:{2:7.2f} rad.s".format(*blossom_gyro)
-        blossom_Atext.set(blossom_accel_string)
-        blossom_Gtext.set(blossom_gyro_string)
+        ## IMU READINGS ##
+        round_to_decimal = 2
+
+        dtTimer = 0
+        dt = time.time() - dtTimer
+        dtTimer = time.time()
+        
+        # get_raw_data()
+        # # read the accelerometer and gyroscope
+        # read_accel = mpu6050.acceleration    # reads accel, tuple
+        # read_gyro = mpu6050.gyro             # reads gyro, tuple
+
+        # # unpack the accel/gyro tuples
+        # ax, ay, az = read_accel       # unpacks tuple
+        # gx, gy, gz = read_gyro           
+        
+        # ax = round(ax, round_to_decimal)                   # rounds float to 2 decimal places
+        # ay = round(ay, round_to_decimal)
+        # az = round(az, round_to_decimal)
+        
+        # gx = round(gx, round_to_decimal)
+        # gy = round(gy, round_to_decimal)
+        # gz = round(gyroZ, round_to_decimal)
+        
+        # # calculate roll and pitch
+        # imu_pitch = atan2(ay, az)*radToDeg     # about IMU x axis, equivalent to arm's roll
+        # imu_roll = atan2(ax, az)*radToDeg      # about IMU y axis, equivalent to arm's pitch
+        
+        ##### COPY FROM FILTER
+        # Process IMU values #
+        # Get Raw Data
+        gx = eightBit2sixteenBit(0x43)
+        gy = eightBit2sixteenBit(0x45)
+        gz = eightBit2sixteenBit(0x47)
+
+        ax = eightBit2sixteenBit(0x3B)
+        ay = eightBit2sixteenBit(0x3D)
+        az = eightBit2sixteenBit(0x3F)
+        
+        # print("Get Raw Data")
+        # print("\tgx: " + str(round(gx,1)))
+        # print("\tgy: " + str(round(gy,1)))
+        # print("\tgz: " + str(round(gz,1)) + "\n")
+        
+        # print("\tax: " + str(round(ax,1)))
+        # print("\tay: " + str(round(ay,1)))
+        # print("\taz: " + str(round(az,1)))
+        
+        # Subtract the offset calibration values
+        gx -= gyroXcal
+        gy -= gyroYcal
+        gz -= gyroZcal
+        
+        # Convert to instantaneous degrees per second
+        gx /= gyroScaleFactor
+        gy /= gyroScaleFactor
+        gz /= gyroScaleFactor
+
+        # Convert to g force
+        ax /= accScaleFactor
+        ay /= accScaleFactor
+        az /= accScaleFactor
+        
+        # Complementary filter #
+        # Get delta time and record time for next call
+        dt = time.time() - dtTimer
+        dtTimer = time.time()
+        
+        # Acceleration vector angle
+        accPitch = degrees(atan2(ay, az))
+        accRoll = degrees(atan2(ax, az))
+
+        # Gyro integration angle
+        gyroRoll -= gy * dt
+        gyroPitch += gx * dt
+        gyroYaw += gz * dt
+        yaw = gyroYaw
+
+        # Comp filter
+        tau = 0.98
+        roll = (tau)*(roll - gy*dt) + (1-tau)*(accRoll)
+        pitch = (tau)*(pitch + gx*dt) + (1-tau)*(accPitch)
+
+        # Print data
+        print(" R: " + str(round(roll,1)) \
+            + " P: " + str(round(pitch,1)) \
+            + " Y: " + str(round(yaw,1)))
+        
+        ## END COPY FROM FILTER
+        
+        # complementary filter (about IMU axes)
+        # alpha = 0.9
+        # comp_filter_roll = 0
+        # comp_filter_pitch = 0
+        
+        # comp_filter_roll =  alpha*(comp_filter_roll + gy*dt) + (1-alpha)*(imu_roll)
+        # comp_filter_pitch = alpha*(comp_filter_pitch + gx*dt) + (1-alpha)*(imu_pitch)
+
+        # # string format accel/gyro readings
+        # accel_string = "Acceleration: X:{0:7.2f}, Y:{1:7.2f}, Z:{2:7.2f} m/s^2".format(*read_accel)
+        # gyro_string = "Angular Velocity: X:{0:7.2f}, Y:{1:7.2f}, Z:{2:7.2f} degrees/s".format(*read_gyro)
+
+        # # string format roll/pitch readings
+        # imu_roll_string = str(imu_roll)
+        # imu_pitch_string = str(imu_pitch)
+
+        # print('Roll: ', str(imu_roll))
+        # print('Pitch: ', str(imu_pitch))
+        # print(accel_string)
+
+        # pitch_text.set(imu_roll_string)
+        # roll_text.set(imu_pitch_string)
 
         time.sleep(0.5)
-        
-        # Jevois Reading
-        ser1.flushInput()
-
-        serialread = ser1.readline().rstrip().decode('utf8')
-        data_list = serialread.split('x')
-        list_check = str(data_list)
-        no = "['']"
-                
-        if list_check != no:
-            #using map() to turn string array into int array
-            data_list = list(map(int, data_list))
-            x = data_list[0]     # int
-            y = data_list[1]     # int
-                    
-            print ('X coordinate: {} | Y coordinate: {}'.format(x,y))
-            jevois_reading = 'X coordinate: {} | Y coordinate: {}'.format(x,y)
-            jevois_text.set(jevois_reading)
-            if x != 0:
-                trace_move_motors(x, y)
-                # blink()
                 
     if not running:
         print("this is not running")
@@ -189,20 +358,14 @@ def run():
  
     # after 1 s, call scanning again,  1/2 s = 500
     root.after(1, run)
-    
-def show_tab(mode_frame, mode_selection):
-    my_notebook.add(mode_frame, text = mode_selection)
-    
-def close_tab(i_tab):
-    my_notebook.hide(i_tab)
+
     
 ### WIDGETS ###
 
 # GLOBAL MODE TAB WIDGET SIZING #
-title_rel_height = 0.05
+title_rel_height = 0.08
 title_rel_width = 0.95
 close_tab_relx = 0.98
-# close_tab_rely = 0.9
 close_rel_height = 0.05
 close_rel_width = 0.02
 tab_title_rely = 0.05
@@ -215,30 +378,37 @@ mode_sel_relheight = 0.1
 mode_sel_relwidth = 0.2
 
 # WIDGETS
-select_mode_label = Label(mode_selection_tab, text = 'Select Control Mode:', 
-                          font = myFont, bg = 'white')
-select_mode_label.place(relx = 0.5, rely = tab_title_rely,
-                        relheight = title_rel_height, relwidth = title_rel_width,
-                        anchor = 'n')
+select_mode_label = Label(mode_selection_tab, text='Select Control Mode:', 
+                          font=dark_widget_font, bg=DARK_BG,
+                          fg=WITE_BG)
+select_mode_label.place(relx=0.5, rely=tab_title_rely,
+                        relheight=title_rel_height, relwidth=title_rel_width,
+                        anchor='n')
 
 # A = manual mode
-manual_button = Button(mode_selection_tab, text = 'Manual Mode',
-                       font = myFont, 
-                       command = lambda: show_tab(manual_tab, 'Manual Mode'))
-manual_button.place(relx = 0.15, rely = mode_sel_rely,
-                    relheight = mode_sel_relheight, relwidth = mode_sel_relwidth)
+manual_on = b'<' + b'M' + b'M' + b'1' + b'>'
+manual_off = b'<' + b'M' + b'M' + b'0' + b'>'
+manual_button = Button(mode_selection_tab, text='Manual Mode',
+                       font=lite_widget_font, bg=DARK_BG, fg=WITE_BG,
+                       command = lambda: show_tab(manual_tab, 'Manual Mode', manual_on))
+manual_button.place(relx=0.15, rely=mode_sel_rely,
+                    relheight=mode_sel_relheight, relwidth=mode_sel_relwidth)
 
 # B = object tracing mode
+object_tracing_on = b'<' + b'O' + b'T' + b'1' + b'>'
+object_tracing_off = b'<' + b'O' + b'T' + b'1' + b'>'
 object_trace_button = Button(mode_selection_tab, text = 'Object Tracing Mode',
-                             font = myFont,
-                             command = lambda: show_tab(object_tracing_tab, 'Object Tracing Mode'))
+                             font = lite_widget_font, bg=DARK_BG, fg=WITE_BG,
+                             command = lambda: show_tab(object_tracing_tab, 'Object Tracing Mode', object_tracing_on))
 object_trace_button.place(relx = 0.4, rely = mode_sel_rely,
                           relheight = mode_sel_relheight, relwidth = mode_sel_relwidth)
 
 # C = pattern mode
+pattern_on = b'<' + b'P' + b'M' + b'1' + b'>'
+pattern_off = b'<' + b'P' + b'M' + b'0' + b'>'
 pattern_button = Button(mode_selection_tab, text = 'Pattern Mode',
-                        font = myFont,
-                        command = lambda: show_tab(pattern_tab, 'Pattern Mode'))
+                        font = lite_widget_font, bg=DARK_BG, fg=WITE_BG,
+                        command = lambda: show_tab(pattern_tab, 'Pattern Mode', pattern_on))
 pattern_button.place(relx = 0.65, rely = mode_sel_rely,
                      relheight = mode_sel_relheight, relwidth = mode_sel_relwidth)
 
@@ -248,417 +418,374 @@ pattern_description_text = 'Pattern Tracing Mode: <add description later>.'
 
 mode_descriptions_text = ('{:<} \n \n {:<} \n \n {:<}'.format(manual_description_text, object_description_text, pattern_description_text))
 
-mode_descriptions = Label(mode_selection_tab, text = mode_descriptions_text,
-                          font = myFont, bg = 'white',
-                          anchor = 'w', justify = LEFT,
-                          wraplength = 760)
-mode_descriptions.place(relx = 0.5, rely = 0.35,
-                        relheight = 0.3, relwidth = title_rel_width,
-                        anchor = 'n')
+mode_descriptions = Label(mode_selection_tab, text=mode_descriptions_text,
+                          font=lite_widget_font, bg=LITE_BG, fg=WITE_BG,
+                          anchor='w', justify=LEFT,
+                          wraplength=760)
+mode_descriptions.place(relx=0.5, rely=0.35,
+                        relheight=0.3, relwidth=title_rel_width,
+                        anchor='n')
 
-exit_gui_button = tk.Button(mode_selection_tab, text = "Exit GUI", command = close_window)
-exit_gui_button.place(rely = 0.9,
-                      relheight = 0.1, relwidth = 0.2)
+exit_gui_button = tk.Button(mode_selection_tab, text="Exit GUI", 
+                            bg=DARK_BG, fg=WITE_BG,
+                            command=close_window)
+exit_gui_button.place(rely=0.9,
+                      relheight=0.1, relwidth=0.2)
 
-#---# A, MANUAL MODE TAB #---#
+#---# MANUAL MODE TAB #---#
 manual_title = Label(manual_tab, text = 'Manual Mode',
-                          font = myFont, bg = 'white')
+                          font = lite_widget_font, bg=DARK_BG, fg=WITE_BG)
 manual_title.place(relx = 0.5, rely = tab_title_rely,
                    relheight = title_rel_height, relwidth = title_rel_width,
                    anchor = 'n')
 close_manual_tab = Button(manual_tab, text = 'X',
                       fg = 'white', bg = 'red',
-                      font = myFont,
-                      command = lambda: close_tab(1))
+                      font = lite_widget_font,
+                      command = lambda: close_tab(1, manual_off))
 close_manual_tab.place(relx = close_tab_relx, #rely = close_tab_rely,
                    relheight = close_rel_height, relwidth = close_rel_width)
-exit_gui_from_manual = tk.Button(manual_tab, text = "Exit GUI", command = close_window)
+exit_gui_from_manual = tk.Button(manual_tab, text = "Exit GUI", 
+                                 bg=DARK_BG, fg=WITE_BG,
+                                 command = close_window)
 exit_gui_from_manual.place(relx = 0.02, rely = 0.88,
                       relheight = 0.1, relwidth = 0.2)
 
-# A - control dimensions #
 '''
 legend:
     x = relx
     y = rely
     w = width
     h = height
-    A = motor control tab
 '''
 
 # category labels (position, analog control, imu)
 
-Aw_category = 0.2
-Aw_position_category = 0.3
-Aw_imu_category = 0.25
-Ah_category = 0.05
-Ay_category = 0.2
+w_category = 0.2
+w_position_category = 0.3
+w_imu_category = 0.25
+h_category = 0.05
+y_category = 0.2
 
-Ax_position_category = 0.025
-Ax_analog_category = 0.49
-Ax_imu_category = 0.72
+x_position_category = 0.025
+x_joystick_category = 0.5
+x_imu_category = 0.675
 
-Aposition_label = Label(manual_tab, text = 'Position Input Motion Control​', 
-                       font = myFont)
-Aposition_label.place(relx = Ax_position_category, rely = Ay_category, 
-                     relwidth = Aw_position_category, relheight = Ah_category)
-Aanalog_label = Label(manual_tab, text = 'Analog Control​', 
-                       font = myFont)
-Aanalog_label.place(relx = Ax_analog_category, rely = Ay_category, 
-                     relwidth = Aw_category, relheight = Ah_category)
-Aimu_label = Label(manual_tab, text = 'IMU Readings', 
-                       font = myFont)
-Aimu_label.place(relx = Ax_imu_category, rely = Ay_category, 
-                     relwidth = Aw_imu_category, relheight = Ah_category)
+position_label = Label(manual_tab, text='Position Input Motion Control​', 
+                       font=lite_widget_font, bg=DARK_BG, fg=WITE_BG)
+position_label.place(relx=x_position_category, rely=y_category, 
+                     relwidth=w_position_category, relheight=h_category)
+
+joystick_label = Label(manual_tab, text='Joystick Toggle​', 
+                       font=lite_widget_font, bg=DARK_BG, fg=WITE_BG)
+joystick_label.place(relx=x_joystick_category, rely=y_category, 
+                     relwidth=w_category, relheight=h_category,
+                     anchor='n')
+
+imu_label = Label(manual_tab, text='IMU Readings', 
+                       font=lite_widget_font, bg=DARK_BG, fg=WITE_BG)
+imu_label.place(relx=x_imu_category, rely=y_category, 
+                relwidth=w_position_category, relheight=h_category)
 
 # separators #
 s = ttk.Style()
 s.configure('white.TSeparator', background = 'white')
 
-Aw_separator = 0.001
-Ah_separator = 0.5
-Ay_separator = 0.2
+w_separator = 0.001
+h_separator = 0.5
+y_separator = 0.2
 
-Ax_separator1 = 0.34
-Ax_separator2 = 0.475
-Ax_separator3 = 0.705
-
+x_separator1 = 0.363
+x_separator2 = 0.636
 
 separator1 = ttk.Separator(manual_tab, orient = 'vertical',
                            style = 'white.TSeparator')
-separator1.place(relx = Ax_separator1, rely = Ay_separator, 
-                 relwidth = Aw_separator, relheight = Ah_separator)
+separator1.place(relx = x_separator1, rely = y_separator, 
+                 relwidth = w_separator, relheight = h_separator)
 
 separator2 = ttk.Separator(manual_tab, orient = 'vertical',
                            style = 'white.TSeparator')
-separator2.place(relx = Ax_separator2, rely = Ay_separator, 
-                 relwidth = Aw_separator, relheight = Ah_separator)
-
-separator3 = ttk.Separator(manual_tab, orient = 'vertical',
-                           style = 'white.TSeparator')
-separator3.place(relx = Ax_separator3, rely = Ay_separator, 
-                 relwidth = Aw_separator, relheight = Ah_separator)
+separator2.place(relx = x_separator2, rely = y_separator, 
+                 relwidth = w_separator, relheight = h_separator)
 
 # position labels (target1, current1, target2, current2)
-Aw_position = 0.15
-Ah_position = 0.05
-Ax_position = 0.025
+w_position = 0.15
+h_position = 0.05
+x_position = 0.025
 
-Ay_target1 = 0.3
-Ay_encoder1 = 0.4
-Ay_target2 = 0.5
-Ay_encoder2 = 0.6
+y_target1 = 0.3
+y_encoder1 = y_target1 + 0.1
+y_target2 = y_target1 + 0.2
+y_encoder2 = y_target1 + 0.3
 
-A_target1 = Label(manual_tab, text = 'Target Position 1:', font = myFont)
-A_target1.place(relx = Ax_position, rely = Ay_target1, 
-                relwidth = Aw_position, relheight = Ah_position)
+target1 = Label(manual_tab, text='Target Position 1:', 
+                font=lite_widget_font, bg=LITE_BG, fg=WITE_BG)
+target1.place(relx=x_position, rely=y_target1, 
+              relwidth=w_position, relheight=h_position)
 
-Acurrent_position1_label = Label(manual_tab, text = 'Current Position 1:', 
-                                 font = myFont)
-Acurrent_position1_label.place(relx = Ax_position, rely = Ay_encoder1,
-                               relwidth = Aw_position, relheight = Ah_position)
+current_position1 = Label(manual_tab, text='Current Position 1:', 
+                          font=lite_widget_font, bg=LITE_BG, fg=WITE_BG)
+current_position1.place(relx=x_position, rely=y_encoder1,
+                        relwidth=w_position, relheight=h_position)
 
-A_target2 = Label(manual_tab, text = 'Target Position 2:', font = myFont)
-A_target2.place(relx = Ax_position, rely = Ay_target2, 
-                relwidth = Aw_position, relheight = Ah_position)
+A_target2 = Label(manual_tab, text='Target Position 2:', 
+                  font=lite_widget_font, bg=LITE_BG, fg=WITE_BG)
+A_target2.place(relx=x_position, rely=y_target2, 
+                relwidth=w_position, relheight=h_position)
 
-Acurrent_position1_label = Label(manual_tab, text = 'Current Position 2:', 
-                                 font = myFont)
-Acurrent_position1_label.place(relx = Ax_position, rely = Ay_encoder2,
-                               relwidth = Aw_position, relheight = Ah_position)
+current_position2 = Label(manual_tab, text='Current Position 2:', 
+                          font=lite_widget_font, bg=LITE_BG, fg=WITE_BG)
+current_position2.place(relx=x_position, rely=y_encoder2,
+                               relwidth=w_position, relheight=h_position)
 
 # position entries (target1, curren1, target 2, current 2)
-Aw_position_in = 0.125
-Ah_position_in = 0.05
-Ax_position_in = 0.2
+w_position_in = 0.125
+h_position_in = 0.05
+x_position_in = 0.2
 
-enter_position_motor1 = Entry(manual_tab)#, textvariable = position_motor1_txt)
-enter_position_motor1.place(relx = Ax_position_in, rely = Ay_target1,
-                            relwidth = Aw_position_in, relheight = Ah_position_in)
+# motor 1
+position1 = StringVar()
+position1.set('')
+enter_position1 = Entry(manual_tab, bg=LITE_BG, fg=WITE_BG,
+                        textvariable = position1)
+enter_position1.place(relx=x_position_in, rely=y_target1,
+                      relwidth=w_position_in, relheight=h_position_in)
 
-encoder1_label = tk.Label(manual_tab, font = myFont, bg = 'white')
-encoder1_label.place(relx = Ax_position_in, rely = Ay_encoder1, 
-                     relwidth = Aw_position_in, relheight = Ah_position_in)
+encoder1_label = tk.Label(manual_tab, font=lite_widget_font, 
+                          bg=LITE_BG, fg=WITE_BG)
+encoder1_label.place(relx=x_position_in, rely=y_encoder1, 
+                     relwidth=w_position_in, relheight=h_position_in)
 
-enter_position_motor1 = Entry(manual_tab)#, textvariable = position_motor1_txt)
-enter_position_motor1.place(relx = Ax_position_in, rely = Ay_target2,
-                            relwidth = Aw_position_in, relheight = Ah_position_in)
+# motor 2
+position2 = StringVar()
+position2.set('')
+enter_position2 = Entry(manual_tab, bg=LITE_BG, fg=WITE_BG,
+                        textvariable = position2)
+enter_position2.place(relx=x_position_in, rely=y_target2,
+                            relwidth=w_position_in, relheight=h_position_in)
 
-encoder1_label = tk.Label(manual_tab, font = myFont, bg = 'white')
-encoder1_label.place(relx = Ax_position_in, rely = Ay_encoder2, 
-                     relwidth = Aw_position_in, relheight = Ah_position_in)
+encoder2_label = tk.Label(manual_tab, font=lite_widget_font,
+                          bg=LITE_BG, fg=WITE_BG)
+encoder2_label.place(relx=x_position_in, rely=y_encoder2, 
+                     relwidth=w_position_in, relheight=h_position_in)
 
-# executing buttons (run, stop, home)
-Aw_execute = 0.08
-Ah_execute = 0.1
-Ax_execute = 0.368
+# send user input to the arduino
+x_run = 0.125
+y_run = 0.7
+w_run = 0.08
+h_run = 0.1
 
-Ay_run = 0.3
-Ay_stop = 0.45
-Ay_home = 0.6
+run_button = Button(manual_tab, text='Run',
+                    font=lite_widget_font, bg='#b3ffb3', fg='black',
+                    command=lambda: manual_move_motorse(position1, position2))
+                    #   command = lambda: send_to_jevois_program('obstacle'))
+run_button.place (relx=x_run, rely=y_run, 
+                  relwidth=w_run, relheight=h_run)
 
-Arun_button = Button(manual_tab, text = 'Run',
-                    bg = 'green', font = myFont)
-                      #command = lambda: send_to_jevois_program('obstacle'))
-Arun_button.place (relx = Ax_execute, rely = Ay_run, 
-                  relwidth = Aw_execute, relheight = Ah_execute)
-Astop_button = Button(manual_tab, text = 'Stop',
-                    bg = 'red', font = myFont)
-                      #command = lambda: send_to_jevois_program('obstacle'))
-Astop_button.place (relx = Ax_execute, rely = Ay_stop, 
-                  relwidth = Aw_execute, relheight = Ah_execute)
-Ahome_button = Button(manual_tab, text = 'Home',
-                    bg = 'blue', font = myFont)
-                      #command = lambda: send_to_jevois_program('obstacle'))
-Ahome_button.place (relx = Ax_execute, rely = Ay_home, 
-                  relwidth = Aw_execute, relheight = Ah_execute)
+# joystick, on/off
+x_joystick = 0.5
+w_joystick = 0.08
+h_joystick = 0.1
 
-# analog control buttons (up, down, left, right)
-Aw_updown_analog = 0.04
-Ah_updown_analog = 0.1
-Aw_leftright_analog = 0.038
-Ah_leftright_analog = 0.1
+y_on = 0.3
+y_off = y_on + 0.15
 
+joystick_on = b'<' + b'J' + b'S' + b'1' + b'>'
+joystick_off = b'<' + b'J' + b'S' + b'0' + b'>'
 
-Aw_dpad_fill = 0.07
-Ah_dpad_fill = 0.1
-
-Ax_dpad_fill = 0.55
-Ax_updown = 0.57
-Ay_leftright = 0.4
-
-Ax_left = 0.528 #.043
-Ax_right = 0.613
-Ay_up = 0.3
-Ay_down = 0.5
-
-Aup_button = Button(manual_tab, text = '△',
-                    font = myFont)
-                      #command = lambda: send_to_jevois_program('obstacle'))
-Aup_button.place (relx = Ax_updown, rely = Ay_up, 
-                  relwidth = Aw_updown_analog, relheight = Ah_updown_analog)
-Aleftright_label = tk.Label(manual_tab, font = myFont)
-Aleftright_label.place(relx = Ax_dpad_fill, rely = Ay_leftright, 
-                       relwidth = Aw_dpad_fill, relheight = Ah_dpad_fill)
-
-Aleft_button = Button(manual_tab, text = '◁',
-                    font = myFont)
-                      #command = lambda: send_to_jevois_program('obstacle'))
-Aleft_button.place (relx = Ax_left, rely = Ay_leftright, 
-                    relwidth = Aw_leftright_analog, relheight = Ah_leftright_analog)
-
-Aright_button = Button(manual_tab, text = '▷',
-                       font = myFont)
-                      #command = lambda: send_to_jevois_program('obstacle'))
-Aright_button.place (relx = Ax_right, rely = Ay_leftright, 
-                     relwidth = Aw_leftright_analog, relheight = Ah_leftright_analog)
-Adown_button = Button(manual_tab, text = '▽',
-                      font = myFont)
-                      #command = lambda: send_to_jevois_program('obstacle'))
-Adown_button.place (relx = Ax_updown, rely = Ay_down, 
-                    relwidth = Aw_updown_analog, relheight = Ah_updown_analog)
+on_button = Button(manual_tab, text='On',
+                    bg=LITE_BG, font=lite_widget_font,
+                    command = lambda: set_arduino_mode(joystick_on))
+on_button.place (relx=x_joystick, rely=y_on, 
+                 relwidth=w_joystick, relheight=h_joystick,
+                 anchor = 'n')
+off_button = Button(manual_tab, text='Off',
+                    bg=DARK_BG, font=dark_widget_font,
+                    command = lambda: set_arduino_mode(joystick_off))
+off_button.place (relx=x_joystick, rely=y_off, 
+                  relwidth=w_joystick, relheight=h_joystick,
+                  anchor = 'n')
 
 # imu axis labels
-Aw_axis = 0.06
-Ah_axis = Ah_position
-Ax_axis = 0.72
+Aw_axis = 0.07
+Ah_position = 0.05
+Ax_axis = 0.675
 
-Axaxis_label = Label(manual_tab, text = 'x-axis:​', 
-                     font = myFont)
-Axaxis_label.place(relx = Ax_axis, rely = Ay_target1, 
-                   relwidth = Aw_axis, relheight = Ah_position)
+# the arm's pitch is about the IMU's y axis
+# the arm's roll is about the IMU's x axis
+roll_label = Label(manual_tab, text = 'roll:​', 
+                    font = lite_widget_font, bg=LITE_BG, fg=WITE_BG)
+roll_label.place(relx = Ax_axis, rely = y_target1, 
+                  relwidth = Aw_axis, relheight = Ah_position)
 
-Ayaxis_label = Label(manual_tab, text = 'y-axis:​', 
-                     font = myFont)
-Ayaxis_label.place(relx = Ax_axis, rely = Ay_encoder1, 
-                   relwidth = Aw_axis, relheight = Ah_position)
-
-Azaxis_label = Label(manual_tab, text = 'z-axis:​', 
-                     font = myFont)
-Azaxis_label.place(relx = Ax_axis, rely = Ay_target2, 
-                   relwidth = Aw_axis, relheight = Ah_position)
+pitch_label = Label(manual_tab, text = 'pitch:​', 
+                   font = lite_widget_font, bg=LITE_BG, fg=WITE_BG)
+pitch_label.place(relx = Ax_axis, rely = y_encoder1, 
+                 relwidth = Aw_axis, relheight = Ah_position)
 
 # imu axis readings
-Aw_read_axis = 0.162
+Aw_read_axis = 0.205
 Ah_read_axis = Ah_position
-Ax_read_axis = 0.81
+Ax_read_axis = 0.77
 
-A_ximu_txt = StringVar()
-A_ximu_txt.set('X-Axis Data')
-A_ximu_output = Label(manual_tab, textvariable = A_ximu_txt)
-A_ximu_output.place(relx = Ax_read_axis, rely = Ay_target1,
-                   relwidth = Aw_read_axis, relheight = Ah_position)
+pitch_text = StringVar()
+pitch_text.set('Pitch Reading')
+pitch_output = Label(manual_tab, textvariable=pitch_text,
+                     bg=LITE_BG, fg=WITE_BG)
+pitch_output.place(relx=Ax_read_axis, rely=y_encoder1,
+                   relwidth=Aw_read_axis, relheight=Ah_position)
 
-A_yimu_txt = StringVar()
-A_yimu_txt.set('Y-Axis Data')
-A_yimu_output = Label(manual_tab, textvariable = A_yimu_txt)
-A_yimu_output.place(relx = Ax_read_axis, rely = Ay_encoder1,
-                   relwidth = Aw_read_axis, relheight = Ah_position)
-A_zimu_txt = StringVar()
-A_zimu_txt.set('Z-Axis Data')
-A_zimu_output = Label(manual_tab, textvariable = A_zimu_txt)
-A_zimu_output.place(relx = Ax_read_axis, rely = Ay_target2,
-                   relwidth = Aw_read_axis, relheight = Ah_position)
+roll_text = StringVar()
+roll_text.set('Roll Data')
+roll_output = Label(manual_tab, textvariable=roll_text,
+                    bg=LITE_BG, fg=WITE_BG)
+roll_output.place(relx=Ax_read_axis, rely=y_target1,
+                   relwidth=Aw_read_axis, relheight=Ah_position)
 
-#---# B, OBJECT TRACKING TAB #---#
-object_title = Label(object_tracing_tab, text = 'Object Tracing Mode',
-                     font = myFont, bg = 'white')
-object_title.place(relx = 0.5, rely = tab_title_rely,
-                   relheight = title_rel_height, relwidth = title_rel_width,
-                   anchor = 'n')
+#---# OBJECT TRACKING TAB #---#
+object_title = Label(object_tracing_tab, text='Object Tracing Mode',
+                     font=lite_widget_font, bg=DARK_BG, fg=WITE_BG)
+object_title.place(relx=0.5, rely=tab_title_rely,
+                   relheight=title_rel_height, relwidth=title_rel_width,
+                   anchor='n')
 close_object_tab = Button(object_tracing_tab, text = 'X',
-                      fg = 'white', bg = 'red',
-                      font = myFont,
-                      command = lambda: close_tab(2))
-close_object_tab.place(relx = close_tab_relx, #rely = close_tab_rely,
-                   relheight = close_rel_height, relwidth = close_rel_width)
-exit_gui_from_object = tk.Button(object_tracing_tab, text = "Exit GUI", command = close_window)
-exit_gui_from_object.place(relx = 0.02, rely = 0.88,
-                      relheight = 0.1, relwidth = 0.2)
+                      fg='white', bg='red',
+                      font=lite_widget_font,
+                      command=lambda: close_tab(2, object_tracing_off))
+close_object_tab.place(relx=close_tab_relx, #rely = close_tab_rely,
+                   relheight=close_rel_height, relwidth=close_rel_width)
 
-# # PATTERN TAB #
-pattern_title = Label(pattern_tab, text = 'Pattern Mode',
-                     font = myFont, bg = 'white')
-pattern_title.place(relx = 0.5, rely = tab_title_rely, 
-                    relheight = title_rel_height, relwidth = title_rel_width,
-                    anchor = 'n')
-close_pattern_tab = Button(pattern_tab, text = 'X',
-                      fg = 'white', bg = 'red',
-                      font = myFont,
-                      command = lambda: close_tab(3))
-close_pattern_tab.place(relx = close_tab_relx, #rely = close_tab_rely,
-                   relheight = close_rel_height, relwidth = close_rel_width)
-exit_gui_from_pattern = tk.Button(pattern_tab, text = "Exit GUI", command = close_window)
-exit_gui_from_pattern.place(relx = 0.02, rely = 0.88,
-                      relheight = 0.1, relwidth = 0.2)
+exit_gui_from_object = tk.Button(object_tracing_tab, text="Exit GUI", 
+                                 bg=DARK_BG, fg=WITE_BG,
+                                 command=close_window)
+exit_gui_from_object.place(relx=0.02, rely=0.88,
+                      relheight=0.1, relwidth=0.2)
 
-'''
-start_button = Button(root, text = 'Display IMU Reading',
-                      font = myFont, command = start,
-                      bg = 'bisque2', height = 1,
-                      width = 24)
-start_button.grid(row=0, column=1) 
-start_button.config(relief='raised')
- 
-stop_button = Button(root, text = 'Hide IMU Reading',
-                     font = myFont, command = stop,
-                     bg = 'bisque2', height = 1,
-                     width = 24)
-stop_button.grid(row=0, column=2)                 # location in gui
-stop_button.config(relief='raised')
-'''
+# selection labels
+x_category = 0.125
+y_mode = 0.2
+y_color = y_mode + 0.175
 
-'''
-## Jevois - CV ##
-# j = jevois, row = r, column = c
-jr1_rely = 0.3
-jr2_rely = 0.7
-jc1_relx = 0.25
-jc2_relx = 0.5
-jc3_relx = 0.75
-j_relheight = 0.3
-j_relwidth = 0.2
+h_jevois = 0.1
+w_jevois = 0.15
 
-jevois_label = tk.Label(upper_frame, text = 'Computer Vision Control', font = myFont)
-jevois_label.place(relx = 0.5, 
-                   relheight = 0.25, relwidth = 0.25,
-                   anchor = 'n')
+mode_label = tk.Label(object_tracing_tab, 
+                      text='select mode:', font=lite_widget_font, 
+                      bg=DARK_BG, fg=WITE_BG)
+mode_label.place(relx=x_category, rely=y_mode, 
+                 relheight=h_jevois, relwidth=w_jevois)
 
-mode_label = tk.Label(upper_frame, text = 'select mode:', font = myFont, bg = 'white')
-mode_label.place(rely = jr1_rely, 
-                 relheight = j_relheight, relwidth = j_relwidth)
+color_label = tk.Label(object_tracing_tab, 
+                       text='select color:', font=lite_widget_font, 
+                       bg=DARK_BG, fg=WITE_BG)
+color_label.place(relx=x_category, rely=y_color, 
+                  relheight=h_jevois, relwidth=w_jevois)\
+                      
+# mode selection buttons
+mode_space = 0.2
+x_red_calibration = x_category + mode_space
+x_green_obstacle = x_red_calibration + mode_space
+x_blue_target = x_green_obstacle + mode_space
 
-color_label = tk.Label(upper_frame, text='select color:', font = myFont, bg = 'white')
-color_label.place(rely = jr2_rely, 
-                  relheight = j_relheight, relwidth = j_relwidth)
+calibration_button = Button(object_tracing_tab, text='calibration', font=lite_widget_font,
+                            command=lambda: send_to_jevois_program('calibration'))
+calibration_button.place(relx = x_red_calibration, rely=y_mode, 
+                         relheight=h_jevois, relwidth=w_jevois)
 
-jevois_text = StringVar()
-jevois_text.set("Jevois Camera Readings")
-jevois_output = Label(lower_frame, textvariable = jevois_text, bg = 'white')
-jevois_output.place(rely = 0.6,
-                    relheight = 0.15, relwidth = 1)
+obstacle_button = Button(object_tracing_tab, text='obstacle', font=lite_widget_font,
+                         command=lambda: send_to_jevois_program('obstacle'))
+obstacle_button.place(relx=x_green_obstacle, rely=y_mode, 
+                      relheight=h_jevois, relwidth=w_jevois)
 
-calibration_button = Button(upper_frame, text = 'calibration', font = myFont,
-                            command = lambda: send_to_jevois_program('calibration'))
-calibration_button.place(relx = jc1_relx, rely = jr1_rely, 
-                         relheight = j_relheight, relwidth = j_relwidth)
+target_button = Button(object_tracing_tab, text='target', font=lite_widget_font,
+                       command=lambda: send_to_jevois_program('target'))
+target_button.place(relx=x_blue_target, rely=y_mode, 
+                    relheight=h_jevois, relwidth=w_jevois)         
 
-obstacle_button = Button(upper_frame, text = 'obstacle', font = myFont,
-                         command = lambda: send_to_jevois_program('obstacle'))
-obstacle_button.place(relx = jc2_relx, rely = jr1_rely, 
-                      relheight = j_relheight, relwidth = j_relwidth)
+# color selection buttons
+red_button = Button(object_tracing_tab, text='red', font=lite_widget_font, 
+                    activebackground='red',
+                    command=lambda: send_to_jevois_program('red'))
+red_button.place(relx=x_red_calibration, rely=y_color, 
+                 relheight=h_jevois, relwidth=w_jevois)
 
-target_button = Button(upper_frame, text = 'target', font = myFont,
-                       command = lambda: send_to_jevois_program('target'))
-target_button.place(relx = jc3_relx, rely = jr1_rely, 
-                    relheight = j_relheight, relwidth = j_relwidth)
+green_button = Button(object_tracing_tab, text='green', font=lite_widget_font, 
+                      activebackground='green',
+                      command=lambda: send_to_jevois_program('green'))
+green_button.place(relx=x_green_obstacle, rely=y_color, 
+                   relheight=h_jevois, relwidth=w_jevois)
 
-red_button = Button(upper_frame, text = 'red', font = myFont, 
-                    activebackground = 'red',
-                    command = lambda: send_to_jevois_program('red'))
-red_button.place(relx = jc1_relx, rely = jr2_rely, 
-                 relheight = j_relheight, relwidth = j_relwidth)
+blue_button = Button(object_tracing_tab, text='blue', font=lite_widget_font, 
+                     activebackground='blue',
+                     command=lambda: send_to_jevois_program('blue'))
+blue_button.place(relx=x_blue_target, rely=y_color, 
+                  relheight=h_jevois, relwidth=w_jevois)
 
-green_button = Button(upper_frame, text = 'green', font = myFont, 
-                      activebackground = 'green',
-                      command = lambda: send_to_jevois_program('green'))
-green_button.place(relx = jc2_relx, rely = jr2_rely, 
-                   relheight = j_relheight, relwidth = j_relwidth)
+#---# PATTERN TAB #---#
+pattern_title = Label(pattern_tab, text='Pattern Mode',
+                     font=lite_widget_font, bg=DARK_BG, fg=WITE_BG)
+pattern_title.place(relx=0.5, rely=tab_title_rely, 
+                    relheight=title_rel_height, relwidth=title_rel_width,
+                    anchor='n')
 
-blue_button = Button(upper_frame, text = 'blue', font = myFont, 
-                     activebackground = 'blue',
-                     command = lambda: send_to_jevois_program('blue'))
-blue_button.place(relx = jc3_relx, rely = jr2_rely, 
-                  relheight = j_relheight, relwidth = j_relwidth)
+close_pattern_tab = Button(pattern_tab, text='X',
+                           fg = 'white', bg = 'red',
+                           font=lite_widget_font,
+                           command=lambda: close_tab(3, pattern_off))
+close_pattern_tab.place(relx=close_tab_relx,
+                   relheight=close_rel_height, relwidth=close_rel_width)
 
-## Arduino - Motors ##
+exit_gui_from_pattern = tk.Button(pattern_tab, text="Exit GUI", 
+                                  bg=DARK_BG, fg=WITE_BG,
+                                  command=close_window)
+exit_gui_from_pattern.place(relx=0.02, rely=0.88,
+                            relheight=0.1, relwidth=0.2)
 
-ar4_rely =  0.6       # row 3: motor 3 info
-ar5_rely = 0.75       # row 4: motor 4 info
-ar6_rely = 0.9        # row 5: buttons row
-ac3_relx = 0.7        # column 3: encoder feedback
-stepper_enable_relx = 0.63
-run_relx = 0.85
-run_relwidth = 0.1
-warning_relwidth = 0.25
+# pattern selection
+pattern_space = 0.2
+
+x_pattern = 0.225
+x_circle = x_pattern + pattern_space
+x_square = x_circle + pattern_space
+
+on_off_space = 0.15
+y_on = 0.2
+y_off = y_on + on_off_space
+
+circle_on = b'<' + b'C' + b'P' + b'1' + b'>'
+circle_off = b'<' + b'C' + b'P' + b'0' + b'>'
+square_on = b'<' + b'S' + b'P' + b'1' + b'>'
+square_off = b'<' + b'S' + b'P' + b'0' + b'>'
 
 
-arduino_label = tk.Label(middle_frame, text = 'Arduino Communication', font = myFont)
-arduino_label.place(relx = 0.5, 
-                    relwidth = 0.25, relheight = a_relheight, 
-                    anchor = 'n')
+select_pattern = Label(pattern_tab, text='select pattern:', 
+                       font=dark_widget_font, 
+                       bg=DARK_BG, fg=WITE_BG)
+select_pattern.place(relx=x_pattern, rely=y_on,
+                     relheight=h_jevois, relwidth=w_jevois)
 
+circle_mode_on = Button(pattern_tab, text='circle on', 
+                        font=lite_widget_font, bg=LITE_BG,
+                        command=lambda: set_arduino_mode(circle_on))
+circle_mode_on.place(relx=x_circle, rely=y_on, 
+                     relheight=h_jevois, relwidth=w_jevois)
 
+circle_mode_off = Button(pattern_tab, text='circle off', font=lite_widget_font, 
+                         bg=DARK_BG, fg=WITE_BG,
+                         command=lambda: set_arduino_mode(circle_off))
+circle_mode_off.place(relx=x_circle, rely=y_off, 
+                      relheight=h_jevois, relwidth=w_jevois)
 
-speed_label = tk.Label(middle_frame, text = 'speed (steps/s)', font = myFont)
-speed_label.place(relx = ac2_relx, rely = ar1_rely, 
-                  relwidth = a_relwidth, relheight = a_relheight)
+square_mode_on = Button(pattern_tab, text='square on', 
+                        font=lite_widget_font, bg=LITE_BG,
+                        command=lambda: set_arduino_mode(square_on))
+square_mode_on.place(relx=x_square, rely=y_on, 
+                     relheight=h_jevois, relwidth=w_jevois)
 
-speed_warning_label = tk.Label (middle_frame, text = 'warning: do not exceed 200 steps/s', font = myFont)
-speed_warning_label.place(rely = ar6_rely, 
-                          relwidth = warning_relwidth, relheight = a_relheight)
+square_mode_off = Button(pattern_tab, text='square off', font=lite_widget_font, 
+                         bg=DARK_BG, fg=WITE_BG,
+                         command=lambda: set_arduino_mode(square_off))
+square_mode_off.place(relx=x_square, rely=y_off, 
+                      relheight=h_jevois, relwidth=w_jevois)
 
-
-motor1_speed_entry = tk.Entry(middle_frame)
-motor1_speed_entry.place(relx = ac2_relx, rely = ar2_rely, 
-                         relwidth = a_relwidth, relheight = a_relheight)
-
-motor2_speed_entry = tk.Entry(middle_frame)
-motor2_speed_entry.place(relx = ac2_relx, rely = ar3_rely, 
-                         relwidth = a_relwidth, relheight = a_relheight)
-
-
-stepper_enable_button = Button(middle_frame, text = 'Stepper Motors Disabled!', 
-                               bg = 'red', font = myFont)
-                            #    command = stepper_enable)
-stepper_enable_button.place(relx = stepper_enable_relx, rely = ar6_rely, 
-                            relwidth = a_relwidth, relheight = a_relheight)
-
-
-
-## IMU Readings ##
-
-'''
-
-# root.after(1000, run) # after 1 s, call scanning
+root.after(1000, run) # after 1 s, call run()
 root.mainloop()

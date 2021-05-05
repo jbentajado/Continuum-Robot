@@ -38,16 +38,16 @@ blossom_mpu6050 = MPU6050(board.I2C())           # base accel & gyro sensor
 # address = 0x68  # This is the address value read via the i2cdetect command
 
 # Serial - Jevois
-jevois_baudrate= 115200
-com_port1 = '/dev/serial0'
-ser1 = serial.Serial(port = com_port1, baudrate = jevois_baudrate,
-                    parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
-                    bytesize=serial.EIGHTBITS, timeout=1)
+# jevois_baudrate= 115200
+# com_port1 = '/dev/serial0'
+# ser1 = serial.Serial(port = com_port1, baudrate = jevois_baudrate,
+#                     parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
+#                     bytesize=serial.EIGHTBITS, timeout=1)
 
 # Serial - Arduino
-arduino_baudrate = 115200 
-com_port2 = '/dev/ttyACM0'    # under the wifi usb
-ser2 = serial.Serial(port = com_port2, baudrate = arduino_baudrate, timeout = 0)    # my port = '/dev/ttyACM0'
+# arduino_baudrate = 115200 
+# com_port2 = '/dev/ttyACM0'    # under the wifi usb
+# ser2 = serial.Serial(port = com_port2, baudrate = arduino_baudrate, timeout = 0)    # my port = '/dev/ttyACM0'
 # serial_string = ""   # initializes string for serial port
 
 ### GUI DEFINITIONS ###
@@ -112,23 +112,7 @@ def move_motors(x, y):
     print(serialread2)
     
     ser2.write(x_to_arduino + y_to_arduino)
-    
-    # x_to_arduino = '<x{}>'.format(x)
-    # y_to_arduino = '<y{}>'.format(y)
-    
-    # pulse_position1 = str(x*2 + int(newx_position))
-    # pulse_position2 = str(y*2 + int(newy_position))
-    
-    # newx_position = pulse_position1
-    # newy_position = pulse_position2
-    
-    # move_to_position1 = b'<' + b'p' + b'1' + pulse_position1.encode() + b'>'
-    # move_to_position2 = b'<' + b'p' + b'2' + pulse_position2.encode() + b'>'
-    # print('move to position 1:', move_to_position1)
-    # print('move to position 2:', move_to_position2)
-    # serialread2 = ser2.readline()
-    # print(serialread2)
-    # ser2.write(move_to_position1 + move_to_position2)
+
 
 # def round_float(imu_reading):
 #     round_to_decimal = 2
@@ -165,25 +149,25 @@ def run():
         time.sleep(0.5)
         
         # Jevois Reading
-        ser1.flushInput()
+        # ser1.flushInput()
 
-        serialread = ser1.readline().rstrip().decode('utf8')
-        data_list = serialread.split('x')
-        list_check = str(data_list)
-        no = "['']"
+        # serialread = ser1.readline().rstrip().decode('utf8')
+        # data_list = serialread.split('x')
+        # list_check = str(data_list)
+        # no = "['']"
                 
-        if list_check != no:
-            #using map() to turn string array into int array
-            data_list = list(map(int, data_list))
-            x = data_list[0]     # int
-            y = data_list[1]     # int
+        # if list_check != no:
+        #     #using map() to turn string array into int array
+        #     data_list = list(map(int, data_list))
+        #     x = data_list[0]     # int
+        #     y = data_list[1]     # int
                     
-            print ('X coordinate: {} | Y coordinate: {}'.format(x,y))
-            jevois_reading = 'X coordinate: {} | Y coordinate: {}'.format(x,y)
-            jevois_text.set(jevois_reading)
-            if x != 0 or y != 0:
-                move_motors(x, y)
-                # blink()
+        #     print ('X coordinate: {} | Y coordinate: {}'.format(x,y))
+        #     jevois_reading = 'X coordinate: {} | Y coordinate: {}'.format(x,y)
+        #     jevois_text.set(jevois_reading)
+        #     if x != 0 or y != 0:
+        #         move_motors(x, y)
+        #         # blink()
                 
     if not running:
         print("this is not running")
