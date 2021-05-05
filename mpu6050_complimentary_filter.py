@@ -122,6 +122,10 @@ class MPU:
     def processIMUvalues(self):
         # Update the raw data
         self.getRawData()
+        print("print gx gy gz:")
+        print("\tgx: " + str(round(self.gx,1)))
+        print("\tgy: " + str(round(self.gy,1)))
+        print("\tgz: " + str(round(self.gz,1)))
 
         # Subtract the offset calibration values
         self.gx -= self.gyroXcal
@@ -132,6 +136,7 @@ class MPU:
         self.gx /= self.gyroScaleFactor
         self.gy /= self.gyroScaleFactor
         self.gz /= self.gyroScaleFactor
+        
 
         # Convert to g force
         self.ax /= self.accScaleFactor
@@ -151,16 +156,25 @@ class MPU:
         accRoll = math.degrees(math.atan2(self.ax, self.az))
 
         # Gyro integration angle
-        self.gyroRoll -= self.gy * dt
-        self.gyroPitch += self.gx * dt
+        self.gyroRoll -= self.gy * dt # y
+        self.gyroPitch += self.gx * dt # x
         self.gyroYaw += self.gz * dt
         self.yaw = self.gyroYaw
+        
+        # print("Get Raw Data")
+        # print("\tself.gyroRoll: " + str(round(self.gyroRoll,1)))
+        # print("\tself.gyroPitch: " + str(round(self.gyroPitch,1)))
+        # print("\tself.gyroYaw: " + str(round(self.gyroYaw,1)))
 
         # Comp filter
         self.roll = (self.tau)*(self.roll - self.gy*dt) + (1-self.tau)*(accRoll)
         self.pitch = (self.tau)*(self.pitch + self.gx*dt) + (1-self.tau)*(accPitch)
 
         # Print data
+        
+        print(self.gyroRoll)
+        print(self.gyroPitch)
+        
         print(" R: " + str(round(self.roll,1)) \
             + " P: " + str(round(self.pitch,1)) \
             + " Y: " + str(round(self.yaw,1)))

@@ -23,6 +23,9 @@ RPi.GPIO.setmode(RPi.GPIO.BCM)
 
 from adafruit_mpu6050 import MPU6050
 
+import mpu6050_complimentary_filter
+from mpu6050_complimentary_filter import getRawData
+
 radToDeg = 180/pi
 
 newx_position = 0 
@@ -175,33 +178,6 @@ def set_arduino_mode(trigger):
     send_char = trigger
     print(send_char)
     # ser2.write(send_char)
-    
-# def get_raw_data():
-#     # read the accelerometer and gyroscope
-#         read_accel = mpu6050.acceleration    # reads accel, tuple
-#         read_gyro = mpu6050.gyro             # reads gyro, tuple
-
-#         # unpack the accel/gyro tuples
-#         ax, ay, az = read_accel       # unpacks tuple
-#         gx, gy, gz = read_gyro   
-        
-        
-#         # ax = round(ax, round_to_decimal)                   # rounds float to 2 decimal places
-#         # ay = round(ay, round_to_decimal)
-#         # az = round(az, round_to_decimal)
-        
-#         # gx = round(gx, round_to_decimal)
-#         # gy = round(gy, round_to_decimal)
-#         # gz = round(gyroZ, round_to_decimal)
-        
-        # print("Get Raw Data")
-        # print("\tgx: " + str(round(gx,1)))
-        # print("\tgy: " + str(round(gy,1)))
-        # print("\tgz: " + str(round(gz,1)) + "\n")
-        
-        # print("\tax: " + str(round(ax,1)))
-        # print("\tay: " + str(round(ay,1)))
-        # print("\taz: " + str(round(az,1)))
         
 def eightBit2sixteenBit(reg):
         # Reads high and low 8 bit values and shifts them into 16 bit
@@ -235,7 +211,8 @@ def blink():
 def run():
     global gyroRoll, gyroPitch, gyroYaw, roll, pitch, yaw
     if running:
-
+        mpu.getRawData
+        print(gx)
         ## IMU READINGS ##
         round_to_decimal = 2
 
@@ -270,7 +247,12 @@ def run():
         gx = eightBit2sixteenBit(0x43)
         gy = eightBit2sixteenBit(0x45)
         gz = eightBit2sixteenBit(0x47)
-
+        
+        print("Get Raw Data")
+        print("\tgx: " + str(round(gx,1)))
+        print("\tgy: " + str(round(gy,1)))
+        print("\tgz: " + str(round(gz,1)))
+        
         ax = eightBit2sixteenBit(0x3B)
         ay = eightBit2sixteenBit(0x3D)
         az = eightBit2sixteenBit(0x3F)
@@ -293,7 +275,12 @@ def run():
         gx /= gyroScaleFactor
         gy /= gyroScaleFactor
         gz /= gyroScaleFactor
-
+        
+        
+        # print("Get Raw Data")
+        # print("\tgx: " + str(round(gx,1)))
+        # print("\tgy: " + str(round(gy,1)))
+        # print("\tgz: " + str(round(gz,1)))
         # Convert to g force
         ax /= accScaleFactor
         ay /= accScaleFactor
@@ -313,6 +300,11 @@ def run():
         gyroPitch += gx * dt
         gyroYaw += gz * dt
         yaw = gyroYaw
+        
+        # print("Get Raw Data")
+        # print("\tgyroRoll: " + str(round(gx,1)))
+        # print("\tgyroPitch: " + str(round(gy,1)))
+        # print("\tgyroYaw: " + str(round(gz,1)))
 
         # Comp filter
         tau = 0.98
@@ -320,6 +312,12 @@ def run():
         pitch = (tau)*(pitch + gx*dt) + (1-tau)*(accPitch)
 
         # Print data
+        print("accPitch: " + str(accPitch))
+        print("accRoll: " +str(accRoll))
+        
+        print("gyroRoll: " + str(gyroRoll))
+        print("gyroPitch: " + str(gyroPitch))
+        
         print(" R: " + str(round(roll,1)) \
             + " P: " + str(round(pitch,1)) \
             + " Y: " + str(round(yaw,1)))
