@@ -23,9 +23,6 @@ RPi.GPIO.setmode(RPi.GPIO.BCM)
 
 from adafruit_mpu6050 import MPU6050
 
-import mpu6050_complimentary_filter
-from mpu6050_complimentary_filter import getRawData
-
 radToDeg = 180/pi
 
 newx_position = 0 
@@ -35,16 +32,13 @@ newy_position = 0
 # I2C - IMU
 # mpu6050 = MPU6050(board.I2C())           # base accel & gyro sensor
 
-# Setup
-bus = smbus.SMBus(1)
-address = 0x68
-
 # From setUp()
 accHex = 0
 gyroHex = 0
 
-accScaleFactor = 16384.0
-gyroScaleFactor = 131.0
+# Setup
+bus = smbus.SMBus(1)
+address = 0x68
 
 # activate the mpu6050
 bus.write_byte_data(address, 0x6B, 0x00)
@@ -55,11 +49,6 @@ bus.write_byte_data(address, 0x1C, accHex)
 # configure the gyroscope
 bus.write_byte_data(address, 0x1B, gyroHex)
 
-# From gyroscope calibration - offsets
-gyroXcal = -322.1
-gyroYcal = -354.6
-gyroZcal = -223.3
-
 dtTimer = 0
 gyroRoll = 0
 gyroPitch = 0
@@ -68,6 +57,15 @@ gyroYaw = 0
 roll = 0
 pitch = 0
 yaw = 0
+
+# From gyroscope calibration - offsets
+gyroXcal = -331.7
+gyroYcal = -339.4
+gyroZcal = -206.0
+
+accScaleFactor = 16384.0
+gyroScaleFactor = 131.0
+
 # Serial - Jevois
 # jevois_baudrate = 115200
 # com_port1 = '/dev/serial0'
@@ -191,7 +189,6 @@ def eightBit2sixteenBit(reg):
         else:
             return val
 
-
 def show_tab(mode_frame, mode_selection, mode):
     my_notebook.add(mode_frame, text = mode_selection)
     set_arduino_mode(mode)
@@ -209,18 +206,17 @@ def blink():
     ser2.write(y)
 
 def run():
-    global gyroRoll, gyroPitch, gyroYaw, roll, pitch, yaw
+    global gyroRoll, gyroPitch, gyroYaw, roll, pitch, yaw, dtTimer
     if running:
-        mpu.getRawData
-        print(gx)
-        ## IMU READINGS ##
-        round_to_decimal = 2
+        # print(gx)
+        # ## IMU READINGS ##
+        # round_to_decimal = 2
 
-        dtTimer = 0
-        dt = time.time() - dtTimer
-        dtTimer = time.time()
+        # dtTimer = 0
+        # dt = time.time() - dtTimer
+        # dtTimer = time.time()
         
-        # get_raw_data()
+        # # get_raw_data()
         # # read the accelerometer and gyroscope
         # read_accel = mpu6050.acceleration    # reads accel, tuple
         # read_gyro = mpu6050.gyro             # reads gyro, tuple
@@ -228,6 +224,12 @@ def run():
         # # unpack the accel/gyro tuples
         # ax, ay, az = read_accel       # unpacks tuple
         # gx, gy, gz = read_gyro           
+        
+        # print("Get Raw Data")
+        # print("\tgx: " + str(round(gx,1)))
+        # print("\tgy: " + str(round(gy,1)))
+        # print("\tgz: " + str(round(gz,1)))
+        
         
         # ax = round(ax, round_to_decimal)                   # rounds float to 2 decimal places
         # ay = round(ay, round_to_decimal)
@@ -248,19 +250,14 @@ def run():
         gy = eightBit2sixteenBit(0x45)
         gz = eightBit2sixteenBit(0x47)
         
-        print("Get Raw Data")
-        print("\tgx: " + str(round(gx,1)))
-        print("\tgy: " + str(round(gy,1)))
-        print("\tgz: " + str(round(gz,1)))
-        
         ax = eightBit2sixteenBit(0x3B)
         ay = eightBit2sixteenBit(0x3D)
         az = eightBit2sixteenBit(0x3F)
         
-        # print("Get Raw Data")
-        # print("\tgx: " + str(round(gx,1)))
-        # print("\tgy: " + str(round(gy,1)))
-        # print("\tgz: " + str(round(gz,1)) + "\n")
+        print("Get Raw Data")
+        print("\tgx: " + str(round(gx,1)))
+        print("\tgy: " + str(round(gy,1)))
+        print("\tgz: " + str(round(gz,1)) + "\n")
         
         # print("\tax: " + str(round(ax,1)))
         # print("\tay: " + str(round(ay,1)))
@@ -285,7 +282,7 @@ def run():
         ax /= accScaleFactor
         ay /= accScaleFactor
         az /= accScaleFactor
-        
+    
         # Complementary filter #
         # Get delta time and record time for next call
         dt = time.time() - dtTimer
@@ -323,6 +320,7 @@ def run():
             + " Y: " + str(round(yaw,1)))
         
         ## END COPY FROM FILTER
+      
         
         # complementary filter (about IMU axes)
         # alpha = 0.9
@@ -383,7 +381,7 @@ select_mode_label.place(relx=0.5, rely=tab_title_rely,
                         relheight=title_rel_height, relwidth=title_rel_width,
                         anchor='n')
 
-# A = manual mode
+# manual mode
 manual_on = b'<' + b'M' + b'M' + b'1' + b'>'
 manual_off = b'<' + b'M' + b'M' + b'0' + b'>'
 manual_button = Button(mode_selection_tab, text='Manual Mode',
@@ -392,7 +390,7 @@ manual_button = Button(mode_selection_tab, text='Manual Mode',
 manual_button.place(relx=0.15, rely=mode_sel_rely,
                     relheight=mode_sel_relheight, relwidth=mode_sel_relwidth)
 
-# B = object tracing mode
+# object tracing mode
 object_tracing_on = b'<' + b'O' + b'T' + b'1' + b'>'
 object_tracing_off = b'<' + b'O' + b'T' + b'1' + b'>'
 object_trace_button = Button(mode_selection_tab, text = 'Object Tracing Mode',
@@ -401,7 +399,7 @@ object_trace_button = Button(mode_selection_tab, text = 'Object Tracing Mode',
 object_trace_button.place(relx = 0.4, rely = mode_sel_rely,
                           relheight = mode_sel_relheight, relwidth = mode_sel_relwidth)
 
-# C = pattern mode
+# pattern mode
 pattern_on = b'<' + b'P' + b'M' + b'1' + b'>'
 pattern_off = b'<' + b'P' + b'M' + b'0' + b'>'
 pattern_button = Button(mode_selection_tab, text = 'Pattern Mode',
@@ -410,6 +408,7 @@ pattern_button = Button(mode_selection_tab, text = 'Pattern Mode',
 pattern_button.place(relx = 0.65, rely = mode_sel_rely,
                      relheight = mode_sel_relheight, relwidth = mode_sel_relwidth)
 
+# mode descriptions
 manual_description_text = 'Manual Mode: Control the continuum robot manually by inputting the amount of pulses for the motors to move.'
 object_description_text = 'Object Tracing Mode: <add description later>.'
 pattern_description_text = 'Pattern Tracing Mode: <add description later>.'
