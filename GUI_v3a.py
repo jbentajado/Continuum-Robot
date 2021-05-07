@@ -10,20 +10,27 @@ changes made:
 import time
 import smbus
 import serial
-import board
+# import board
+import math
  
 from tkinter import *
 from tkinter import ttk
-from math import *
 import tkinter as tk
 import tkinter.font
-import tkinter.messagebox as MessageBox
-import RPi.GPIO # for cleanup
-RPi.GPIO.setmode(RPi.GPIO.BCM)
 
-from adafruit_mpu6050 import MPU6050
+# from adafruit_mpu6050 import MPU6050
+from mpu6050 import mpu6050
+from compFilter2 import complementaryFilter
 
-radToDeg = 180/pi
+mpu = mpu6050(0x68)
+
+dtTimer = 0
+imu_roll = 0
+imu_pitch = 0
+
+gyroRoll = 0
+gyroPitch = 0
+gyroYaw = 0
 
 newx_position = 0 
 newy_position = 0   
@@ -68,19 +75,22 @@ gyroScaleFactor = 131.0
 
 # Serial - Jevois
 # jevois_baudrate = 115200
-# com_port1 = '/dev/serial0'
+# com_port1 = '/dev/ttyAMA0'
 # ser1 = serial.Serial(port = com_port1, baudrate = jevois_baudrate,
 #                      parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
 #                      bytesize=serial.EIGHTBITS, timeout=1)
 
 # Serial - Arduino
-# arduino_baudrate = 115200 
-# com_port2 = '/dev/ttyACM0'    # under the wifi usb
-# ser2 = serial.Serial(port = com_port2, baudrate = arduino_baudrate, timeout = 0)    # my port = '/dev/ttyACM0'
+arduino_baudrate = 115200 
+com_port2 = '/dev/ttyACM2'
+ser2 = serial.Serial(port = com_port2, baudrate = arduino_baudrate, timeout = 0)    # my port = '/dev/ttyACM0'
 
 ### GUI DEFINITIONS ###
-HEIGHT = 500   # pixels
-WIDTH = 1300
+# HEIGHT = 500   # pixels
+# WIDTH = 1300
+
+HEIGHT = 700
+WIDTH = 2600
 
 root = Tk()                                      # create Tkinter root
 root.title("Continuum Robot GUI")
@@ -146,18 +156,8 @@ def send_to_jevois_program(cmd):
     # print(cmd)
     ser1.write((cmd + '\n').encode())
     time.sleep(1)
-    print('Message was sent to Jevois!')
-  
-def manual_move_motorse(motor1, motor2):
-    move_motor1 = b'<' + b'1' + b'p' + motor1.get().encode() + b'>'
-    move_motor2 = b'<' + b'2' + b'p' + motor2.get().encode() + b'>'
-    print('move to position 1:', move_motor1)
-    print('move to position 2:', move_motor2)
-    
-    # serialread2 = ser2.readline()
-    # print(serialread2)
-    
-    # ser2.write(x_to_arduino + y_to_arduino)
+    print('send: ' + cmd)
+    # print('Message was sent to Jevois!')
 
 def trace_trace_move_motors(x, y):
     global newx_position, newy_position
@@ -167,196 +167,179 @@ def trace_trace_move_motors(x, y):
     print('move to position 1:', x_to_arduino)
     print('move to position 2:', y_to_arduino)
     
-    serialread2 = ser2.readline()
-    print(serialread2)
+    # serialread2 = ser2.readline()
+    # print(serialread2)
     
     ser2.write(x_to_arduino + y_to_arduino)
 
 def set_arduino_mode(trigger):
     send_char = trigger
-    print(send_char)
-    # ser2.write(send_char)
-        
-def eightBit2sixteenBit(reg):
-        # Reads high and low 8 bit values and shifts them into 16 bit
-        h = bus.read_byte_data(address, reg)
-        l = bus.read_byte_data(address, reg+1)
-        val = (h << 8) + l
+    print('arduino mode: ' + str(trigger))
+    ser2.write(send_char)
+    
+def manual_move_motors(motor1, motor2):
+    move_motor1 = b'<' + b'1' + b'p' + motor1.get().encode() + b'>'
+    move_motor2 = b'<' + b'2' + b'p' + motor2.get().encode() + b'>'
+    print('move to position 1:', move_motor1)
+    print('move to position 2:', move_motor2)
+    char = move_motor1 + move_motor2
+    set_arduino_mode(char)
 
-        # Make 16 bit unsigned value to signed value (0 to 65535) to (-32768 to +32767)
-        if (val >= 0x8000):
-            return -((65535 - val) + 1)
-        else:
-            return val
+def send_axes(pitch, yaw):
+    # robot pitch = Ix 
+    # robot yaw = Iy
+    
+    x_theta = b'<' + b'I' + b'x' + pitch.encode() + b'>'
+    y_theta = b'<' + b'I' + b'y' + yaw.encode() + b'>'
+    char = x_theta + y_theta
+    
+    # print('send pitch/yaw: ', char)
+    set_arduino_mode(char)
 
 def show_tab(mode_frame, mode_selection, mode):
     my_notebook.add(mode_frame, text = mode_selection)
-    set_arduino_mode(mode)
+    print('added tab')
     my_notebook.tab(0, state='disabled')
-    
-def close_tab(i_tab, mode):
-    my_notebook.hide(i_tab)
+    print(mode)
     set_arduino_mode(mode)
+    
+def close_tab(i_tab): #, mode):
+    my_notebook.hide(i_tab)
+    print('closed tab')
+    # set_arduino_mode(mode)
     
     my_notebook.tab(0, state='normal')
     my_notebook.select(0)
 
-def blink():
-    y = b'<'+ b'B'+ b'>'
-    ser2.write(y)
-
 def run():
-    global gyroRoll, gyroPitch, gyroYaw, roll, pitch, yaw, dtTimer
+    global dtTimer, imu_roll, imu_pitch, gyroRoll, gyroPitch, gyroYaw
     if running:
-        # print(gx)
-        # ## IMU READINGS ##
-        # round_to_decimal = 2
-
-        # dtTimer = 0
-        # dt = time.time() - dtTimer
-        # dtTimer = time.time()
+        # print('blah')
+        '''
+        # Read Raw data
+        accel_data = mpu.get_accel_data() 
+        gyro_data = mpu.get_gyro_data()
         
-        # # get_raw_data()
-        # # read the accelerometer and gyroscope
-        # read_accel = mpu6050.acceleration    # reads accel, tuple
-        # read_gyro = mpu6050.gyro             # reads gyro, tuple
-
-        # # unpack the accel/gyro tuples
-        # ax, ay, az = read_accel       # unpacks tuple
-        # gx, gy, gz = read_gyro           
-        
-        # print("Get Raw Data")
-        # print("\tgx: " + str(round(gx,1)))
-        # print("\tgy: " + str(round(gy,1)))
-        # print("\tgz: " + str(round(gz,1)))
-        
-        
-        # ax = round(ax, round_to_decimal)                   # rounds float to 2 decimal places
-        # ay = round(ay, round_to_decimal)
-        # az = round(az, round_to_decimal)
-        
-        # gx = round(gx, round_to_decimal)
-        # gy = round(gy, round_to_decimal)
-        # gz = round(gyroZ, round_to_decimal)
-        
-        # # calculate roll and pitch
-        # imu_pitch = atan2(ay, az)*radToDeg     # about IMU x axis, equivalent to arm's roll
-        # imu_roll = atan2(ax, az)*radToDeg      # about IMU y axis, equivalent to arm's pitch
-        
-        ##### COPY FROM FILTER
-        # Process IMU values #
-        # Get Raw Data
-        gx = eightBit2sixteenBit(0x43)
-        gy = eightBit2sixteenBit(0x45)
-        gz = eightBit2sixteenBit(0x47)
-        
-        ax = eightBit2sixteenBit(0x3B)
-        ay = eightBit2sixteenBit(0x3D)
-        az = eightBit2sixteenBit(0x3F)
-        
-        print("Get Raw Data")
-        print("\tgx: " + str(round(gx,1)))
-        print("\tgy: " + str(round(gy,1)))
-        print("\tgz: " + str(round(gz,1)) + "\n")
-        
-        # print("\tax: " + str(round(ax,1)))
-        # print("\tay: " + str(round(ay,1)))
-        # print("\taz: " + str(round(az,1)))
-        
-        # Subtract the offset calibration values
-        gx -= gyroXcal
-        gy -= gyroYcal
-        gz -= gyroZcal
-        
-        # Convert to instantaneous degrees per second
-        gx /= gyroScaleFactor
-        gy /= gyroScaleFactor
-        gz /= gyroScaleFactor
-        
-        
-        # print("Get Raw Data")
-        # print("\tgx: " + str(round(gx,1)))
-        # print("\tgy: " + str(round(gy,1)))
-        # print("\tgz: " + str(round(gz,1)))
-        # Convert to g force
-        ax /= accScaleFactor
-        ay /= accScaleFactor
-        az /= accScaleFactor
-    
-        # Complementary filter #
-        # Get delta time and record time for next call
+        ### ozzmaker - Convert the Raw values to usable angles
+        G_GAIN = 0.07
+        rate_gyr_x = gyro_data['x'] * G_GAIN
+        rate_gyr_y = gyro_data['y'] * G_GAIN
+            
+        # Calculate dt
         dt = time.time() - dtTimer
         dtTimer = time.time()
         
-        # Acceleration vector angle
-        accPitch = degrees(atan2(ay, az))
-        accRoll = degrees(atan2(ax, az))
-
-        # Gyro integration angle
-        gyroRoll -= gy * dt
-        gyroPitch += gx * dt
-        gyroYaw += gz * dt
-        yaw = gyroYaw
+        # Accelerometer angle
+        accPitch = math.degrees(math.atan2(accel_data['y'], accel_data['z']))
+        accRoll = math.degrees(math.atan2(accel_data['x'], accel_data['z']))
         
-        # print("Get Raw Data")
-        # print("\tgyroRoll: " + str(round(gx,1)))
-        # print("\tgyroPitch: " + str(round(gy,1)))
-        # print("\tgyroYaw: " + str(round(gz,1)))
-
-        # Comp filter
+        # Gyroscope integration angle
+        # gyroRoll += gyro_data['y']*dt 
+        # gyroPitch += gyro_data['x']*dt
+        # gyroYaw += gyro_data['z']*dt
+        # yaw = gyroYaw 
+        
+        #ozzmaker
+        gyroRoll += rate_gyr_x*dt 
+        gyroPitch += rate_gyr_y*dt
+        
+        # Complementary Filter - about IMU axes
         tau = 0.98
-        roll = (tau)*(roll - gy*dt) + (1-tau)*(accRoll)
-        pitch = (tau)*(pitch + gx*dt) + (1-tau)*(accPitch)
-
-        # Print data
-        print("accPitch: " + str(accPitch))
-        print("accRoll: " +str(accRoll))
+        # imu_roll = (tau)*(imu_roll + gyro_data['y']*dt) + (1-tau)*(accRoll)
+        # imu_pitch = (tau)*(imu_pitch + gyro_data['x']*dt) + (1-tau)*(accPitch)
         
-        print("gyroRoll: " + str(gyroRoll))
-        print("gyroPitch: " + str(gyroPitch))
+        #ozzmaker
+        imu_roll = (tau)*(imu_roll + rate_gyr_x*dt) + (1-tau)*(accRoll)
+        imu_pitch = (tau)*(imu_pitch + rate_gyr_y*dt) + (1-tau)*(accPitch)
         
-        print(" R: " + str(round(roll,1)) \
-            + " P: " + str(round(pitch,1)) \
-            + " Y: " + str(round(yaw,1)))
+        # Define robot pitch and yaw
+        cbot_yaw = str(imu_pitch)
+        cbot_pitch = str(imu_roll)
+        # cbot_yaw = '%.1f' % round(imu_pitch, 1)
+        # cbot_pitch = '%.1f' % round(imu_roll, 1)
         
-        ## END COPY FROM FILTER
-      
+        # Send robot's pitch and yaw to arduino
+        # send_axes(cbot_pitch, cbot_yaw)
         
-        # complementary filter (about IMU axes)
-        # alpha = 0.9
-        # comp_filter_roll = 0
-        # comp_filter_pitch = 0
+        # Update GUI Labels
+        cbot_pitch_text.set(cbot_pitch)
+        cbot_yaw_text.set(cbot_yaw)
         
-        # comp_filter_roll =  alpha*(comp_filter_roll + gy*dt) + (1-alpha)*(imu_roll)
-        # comp_filter_pitch = alpha*(comp_filter_pitch + gx*dt) + (1-alpha)*(imu_pitch)
-
-        # # string format accel/gyro readings
-        # accel_string = "Acceleration: X:{0:7.2f}, Y:{1:7.2f}, Z:{2:7.2f} m/s^2".format(*read_accel)
-        # gyro_string = "Angular Velocity: X:{0:7.2f}, Y:{1:7.2f}, Z:{2:7.2f} degrees/s".format(*read_gyro)
-
-        # # string format roll/pitch readings
-        # imu_roll_string = str(imu_roll)
-        # imu_pitch_string = str(imu_pitch)
-
-        # print('Roll: ', str(imu_roll))
-        # print('Pitch: ', str(imu_pitch))
-        # print(accel_string)
-
-        # pitch_text.set(imu_roll_string)
-        # roll_text.set(imu_pitch_string)
-
+        print(" R: " \
+                    + "Robot P: " + cbot_pitch \
+                    + "Robot Y: " + cbot_yaw)
+        '''
         time.sleep(0.5)
                 
     if not running:
-        print("this is not running")
-        buttercup_text.set("buttercup IMU readings unavailable")
-        bubbles_text.set("Bubbles IMU readings unavailable")
+        print("Program not running")
  
     # after 1 s, call scanning again,  1/2 s = 500
-    root.after(1, run)
+    root.after(2, run)
 
     
 ### WIDGETS ###
+'''
+legend:
+    x = relx
+    y = rely
+    w = width
+    h = height
+'''
+
+# Arduino mode chars:
+manual_on = b'<' + b'M' + b'M' + b'1' + b'>'
+manual_off = b'<' + b'M' + b'M' + b'0' + b'>'    
+
+object_tracing_on = b'<' + b'O' + b'T' + b'1' + b'>'
+object_tracing_off = b'<' + b'O' + b'T' + b'0' + b'>'   
+
+pattern_on = b'<' + b'P' + b'M' + b'1' + b'>'
+pattern_off = b'<' + b'P' + b'M' + b'0' + b'>'
+
+home = b'<' + b'H' + b'>' 
+
+joystick_on = b'<' + b'J' + b'S' + b'1' + b'>'
+joystick_off = b'<' + b'J' + b'S' + b'0' + b'>'
+
+circle_on = b'<' + b'C' + b'P' + b'1' + b'>'
+circle_off = b'<' + b'C' + b'P' + b'0' + b'>'
+square_on = b'<' + b'S' + b'P' + b'1' + b'>'
+square_off = b'<' + b'S' + b'P' + b'0' + b'>'
+
+run_on = lambda: [set_arduino_mode(manual_on),
+                  manual_move_motors(position1, position2)]
+        
+close_manual_all = lambda: [close_tab(1),
+                            set_arduino_mode(manual_off),
+                            set_arduino_mode(object_tracing_off),
+                            set_arduino_mode(pattern_off),
+                            set_arduino_mode(joystick_off),
+                            set_arduino_mode(circle_off),
+                            set_arduino_mode(square_off)]
+
+close_object_all = lambda: [close_tab(2),
+                            set_arduino_mode(manual_off),
+                            set_arduino_mode(object_tracing_off),
+                            set_arduino_mode(pattern_off),
+                            set_arduino_mode(joystick_off),
+                            set_arduino_mode(circle_off),
+                            set_arduino_mode(square_off)]
+
+close_pattern_all = lambda: [close_tab(3),
+                             set_arduino_mode(manual_off),
+                             set_arduino_mode(object_tracing_off),
+                             set_arduino_mode(pattern_off),
+                             set_arduino_mode(joystick_off),
+                             set_arduino_mode(circle_off),
+                             set_arduino_mode(square_off)]
+        
+all_off = lambda: [set_arduino_mode(manual_off), 
+                   set_arduino_mode(object_tracing_off),
+                   set_arduino_mode(pattern_off),
+                   set_arduino_mode(joystick_off),
+                   set_arduino_mode(circle_off),
+                   set_arduino_mode(square_off)]
 
 # GLOBAL MODE TAB WIDGET SIZING #
 title_rel_height = 0.08
@@ -365,6 +348,16 @@ close_tab_relx = 0.98
 close_rel_height = 0.05
 close_rel_width = 0.02
 tab_title_rely = 0.05
+
+x_homing = 0.92
+y_homing = 0.9
+h_homing = 0.1
+w_homing = 0.08
+
+x_clear = x_homing - 0.1
+y_clear = 0.9
+h_clear = 0.1
+w_clear = 0.08
 
 #---# MODE SELECTION TAB #---#
 
@@ -382,17 +375,13 @@ select_mode_label.place(relx=0.5, rely=tab_title_rely,
                         anchor='n')
 
 # manual mode
-manual_on = b'<' + b'M' + b'M' + b'1' + b'>'
-manual_off = b'<' + b'M' + b'M' + b'0' + b'>'
 manual_button = Button(mode_selection_tab, text='Manual Mode',
                        font=lite_widget_font, bg=DARK_BG, fg=WITE_BG,
-                       command = lambda: show_tab(manual_tab, 'Manual Mode', manual_on))
+                       command = lambda:show_tab(manual_tab, 'Manual Mode', manual_on))
 manual_button.place(relx=0.15, rely=mode_sel_rely,
                     relheight=mode_sel_relheight, relwidth=mode_sel_relwidth)
 
 # object tracing mode
-object_tracing_on = b'<' + b'O' + b'T' + b'1' + b'>'
-object_tracing_off = b'<' + b'O' + b'T' + b'1' + b'>'
 object_trace_button = Button(mode_selection_tab, text = 'Object Tracing Mode',
                              font = lite_widget_font, bg=DARK_BG, fg=WITE_BG,
                              command = lambda: show_tab(object_tracing_tab, 'Object Tracing Mode', object_tracing_on))
@@ -400,8 +389,6 @@ object_trace_button.place(relx = 0.4, rely = mode_sel_rely,
                           relheight = mode_sel_relheight, relwidth = mode_sel_relwidth)
 
 # pattern mode
-pattern_on = b'<' + b'P' + b'M' + b'1' + b'>'
-pattern_off = b'<' + b'P' + b'M' + b'0' + b'>'
 pattern_button = Button(mode_selection_tab, text = 'Pattern Mode',
                         font = lite_widget_font, bg=DARK_BG, fg=WITE_BG,
                         command = lambda: show_tab(pattern_tab, 'Pattern Mode', pattern_on))
@@ -410,8 +397,8 @@ pattern_button.place(relx = 0.65, rely = mode_sel_rely,
 
 # mode descriptions
 manual_description_text = 'Manual Mode: Control the continuum robot manually by inputting the amount of pulses for the motors to move.'
-object_description_text = 'Object Tracing Mode: <add description later>.'
-pattern_description_text = 'Pattern Tracing Mode: <add description later>.'
+object_description_text = 'Object Tracing Mode: Utilize computer vision to have the robot follow different colored objects'
+pattern_description_text = 'Pattern Tracing Mode: Select a shape for the robot to trace in coordinates.'
 
 mode_descriptions_text = ('{:<} \n \n {:<} \n \n {:<}'.format(manual_description_text, object_description_text, pattern_description_text))
 
@@ -430,6 +417,7 @@ exit_gui_button.place(rely=0.9,
                       relheight=0.1, relwidth=0.2)
 
 #---# MANUAL MODE TAB #---#
+
 manual_title = Label(manual_tab, text = 'Manual Mode',
                           font = lite_widget_font, bg=DARK_BG, fg=WITE_BG)
 manual_title.place(relx = 0.5, rely = tab_title_rely,
@@ -438,22 +426,26 @@ manual_title.place(relx = 0.5, rely = tab_title_rely,
 close_manual_tab = Button(manual_tab, text = 'X',
                       fg = 'white', bg = 'red',
                       font = lite_widget_font,
-                      command = lambda: close_tab(1, manual_off))
-close_manual_tab.place(relx = close_tab_relx, #rely = close_tab_rely,
-                   relheight = close_rel_height, relwidth = close_rel_width)
+                      command = close_manual_all)
+close_manual_tab.place(relx = close_tab_relx,
+                       relheight = close_rel_height, relwidth = close_rel_width)
 exit_gui_from_manual = tk.Button(manual_tab, text = "Exit GUI", 
                                  bg=DARK_BG, fg=WITE_BG,
                                  command = close_window)
 exit_gui_from_manual.place(relx = 0.02, rely = 0.88,
                       relheight = 0.1, relwidth = 0.2)
-
-'''
-legend:
-    x = relx
-    y = rely
-    w = width
-    h = height
-'''
+homing_from_manual = Button(manual_tab, text='Home',
+                            font=lite_widget_font, 
+                            bg=LITE_BG, fg=WITE_BG,
+                            command=lambda:set_arduino_mode(home))
+homing_from_manual.place(relx=x_homing, rely=y_homing,
+                         relheight=h_homing, relwidth=w_homing)
+clear_modes_from_manual = Button(manual_tab, text='Clear',
+                                 font=lite_widget_font,
+                                 bg=LITE_BG, fg=WITE_BG,
+                                 command=all_off)
+clear_modes_from_manual.place(relx=x_clear, rely=y_clear,
+                              relheight=h_clear, relwidth=w_clear)
 
 # category labels (position, analog control, imu)
 
@@ -573,8 +565,7 @@ h_run = 0.1
 
 run_button = Button(manual_tab, text='Run',
                     font=lite_widget_font, bg='#b3ffb3', fg='black',
-                    command=lambda: manual_move_motorse(position1, position2))
-                    #   command = lambda: send_to_jevois_program('obstacle'))
+                    command = run_on)
 run_button.place (relx=x_run, rely=y_run, 
                   relwidth=w_run, relheight=h_run)
 
@@ -585,9 +576,6 @@ h_joystick = 0.1
 
 y_on = 0.3
 y_off = y_on + 0.15
-
-joystick_on = b'<' + b'J' + b'S' + b'1' + b'>'
-joystick_off = b'<' + b'J' + b'S' + b'0' + b'>'
 
 on_button = Button(manual_tab, text='On',
                     bg=LITE_BG, font=lite_widget_font,
@@ -624,18 +612,18 @@ Aw_read_axis = 0.205
 Ah_read_axis = Ah_position
 Ax_read_axis = 0.77
 
-pitch_text = StringVar()
-pitch_text.set('Pitch Reading')
-pitch_output = Label(manual_tab, textvariable=pitch_text,
+cbot_pitch_text = StringVar()
+cbot_pitch_text.set('Pitch Reading')
+cbot_pitch_output = Label(manual_tab, textvariable=cbot_pitch_text,
                      bg=LITE_BG, fg=WITE_BG)
-pitch_output.place(relx=Ax_read_axis, rely=y_encoder1,
+cbot_pitch_output.place(relx=Ax_read_axis, rely=y_encoder1,
                    relwidth=Aw_read_axis, relheight=Ah_position)
 
-roll_text = StringVar()
-roll_text.set('Roll Data')
-roll_output = Label(manual_tab, textvariable=roll_text,
+cbot_yaw_text = StringVar()
+cbot_yaw_text.set('Roll Data')
+cbot_yaw_output = Label(manual_tab, textvariable=cbot_yaw_text,
                     bg=LITE_BG, fg=WITE_BG)
-roll_output.place(relx=Ax_read_axis, rely=y_target1,
+cbot_yaw_output.place(relx=Ax_read_axis, rely=y_target1,
                    relwidth=Aw_read_axis, relheight=Ah_position)
 
 #---# OBJECT TRACKING TAB #---#
@@ -647,7 +635,7 @@ object_title.place(relx=0.5, rely=tab_title_rely,
 close_object_tab = Button(object_tracing_tab, text = 'X',
                       fg='white', bg='red',
                       font=lite_widget_font,
-                      command=lambda: close_tab(2, object_tracing_off))
+                      command = close_object_all)
 close_object_tab.place(relx=close_tab_relx, #rely = close_tab_rely,
                    relheight=close_rel_height, relwidth=close_rel_width)
 
@@ -656,6 +644,18 @@ exit_gui_from_object = tk.Button(object_tracing_tab, text="Exit GUI",
                                  command=close_window)
 exit_gui_from_object.place(relx=0.02, rely=0.88,
                       relheight=0.1, relwidth=0.2)
+homing_from_object = Button(object_tracing_tab, text='Home',
+                            font=lite_widget_font, 
+                            bg=LITE_BG, fg=WITE_BG,
+                            command=lambda:self.set_arduino_mode(home))
+homing_from_object.place(relx=x_homing, rely=y_homing,
+                            relheight=h_homing, relwidth=w_homing)
+clear_modes_from_object = Button(object_tracing_tab, text='Clear',
+                                 font=lite_widget_font,
+                                 bg=LITE_BG, fg=WITE_BG,
+                                 command=all_off)
+clear_modes_from_object.place(relx=x_clear, rely=y_clear,
+                              relheight=h_clear, relwidth=w_clear)
 
 # selection labels
 x_category = 0.125
@@ -727,7 +727,7 @@ pattern_title.place(relx=0.5, rely=tab_title_rely,
 close_pattern_tab = Button(pattern_tab, text='X',
                            fg = 'white', bg = 'red',
                            font=lite_widget_font,
-                           command=lambda: close_tab(3, pattern_off))
+                           command = close_pattern_all)
 close_pattern_tab.place(relx=close_tab_relx,
                    relheight=close_rel_height, relwidth=close_rel_width)
 
@@ -736,6 +736,18 @@ exit_gui_from_pattern = tk.Button(pattern_tab, text="Exit GUI",
                                   command=close_window)
 exit_gui_from_pattern.place(relx=0.02, rely=0.88,
                             relheight=0.1, relwidth=0.2)
+homing_from_pattern = Button(pattern_tab, text='Home',
+                            font=lite_widget_font, 
+                            bg=LITE_BG, fg=WITE_BG,
+                            command=lambda:self.set_arduino_mode(home))
+homing_from_pattern.place(relx=x_homing, rely=y_homing,
+                            relheight=h_homing, relwidth=w_homing)
+clear_modes_from_pattern = Button(manual_tab, text='Clear',
+                                 font=lite_widget_font,
+                                 bg=LITE_BG, fg=WITE_BG,
+                                 command=all_off)
+clear_modes_from_pattern.place(relx=x_clear, rely=y_clear,
+                              relheight=h_clear, relwidth=w_clear)
 
 # pattern selection
 pattern_space = 0.2
@@ -747,12 +759,6 @@ x_square = x_circle + pattern_space
 on_off_space = 0.15
 y_on = 0.2
 y_off = y_on + on_off_space
-
-circle_on = b'<' + b'C' + b'P' + b'1' + b'>'
-circle_off = b'<' + b'C' + b'P' + b'0' + b'>'
-square_on = b'<' + b'S' + b'P' + b'1' + b'>'
-square_off = b'<' + b'S' + b'P' + b'0' + b'>'
-
 
 select_pattern = Label(pattern_tab, text='select pattern:', 
                        font=dark_widget_font, 

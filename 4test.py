@@ -1,6 +1,7 @@
 import smbus
 import math
 import time
+import serial
 
 from tkinter import *
 from tkinter import ttk
@@ -10,7 +11,6 @@ import tkinter.font
 
 class ContinuumGUI:    
     def __init__(self, master, gyro, acc, tau):
-        
         # Class / object / constructor setup
         self.gx = None; self.gy = None; self.gz = None;
         self.ax = None; self.ay = None; self.az = None;
@@ -30,22 +30,23 @@ class ContinuumGUI:
         self.dtTimer = 0
         self.tau = tau
 
-        self.gyroXcal = -331.7
-        self.gyroYcal = -339.4
-        self.gyroZcal = -206.0
-
-        self.accScaleFactor = 16384.0
-        self.gyroScaleFactor = 131.0
-        
-        self.accHex = 0
-        self.gyroHex = 0
-
-        # self.gyroScaleFactor, self.gyroHex = self.gyroSensitivity(gyro)
-        # self.accScaleFactor, self.accHex = self.accelerometerSensitivity(acc)
+        self.gyroScaleFactor, self.gyroHex = self.gyroSensitivity(gyro)
+        self.accScaleFactor, self.accHex = self.accelerometerSensitivity(acc)
 
         self.bus = smbus.SMBus(1)
         self.address = 0x68
         
+        # Serial - Jevois
+        jevois_baudrate = 115200
+        com_port1 = '/dev/ttyACM0'
+        self.ser1 = serial.Serial(port = com_port1, baudrate = jevois_baudrate,
+                                  parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
+                                  bytesize=serial.EIGHTBITS, timeout=1)
+        
+        # Serial - Arduino
+        arduino_baudrate = 115200 
+        com_port2 = '/dev/ttyACM1'    # under the wifi usb
+        self.ser2 = serial.Serial(port = com_port2, baudrate = arduino_baudrate, timeout = 0)    # my port = '/dev/ttyACM0'
         ####
         
         # Fonts
@@ -63,8 +64,11 @@ class ContinuumGUI:
         self.master = master
         master.title("Continuum Robot GUI")
                 
-        self.HEIGHT = 500   # pixels
-        self.WIDTH = 1300       
+        # self.HEIGHT = 500   # pixels
+        # self.WIDTH = 1300    
+        
+        self.HEIGHT = 700
+        self.WIDTH = 2600   
              
         canvas = tk.Canvas(master, height=self.HEIGHT, width=self.WIDTH)
         canvas.pack
@@ -110,6 +114,27 @@ class ContinuumGUI:
             w = width
             h = height
         '''
+        
+        # Arduino mode chars:
+        manual_on = b'<' + b'M' + b'M' + b'1' + b'>'
+        manual_off = b'<' + b'M' + b'M' + b'0' + b'>'    
+        
+        object_tracing_on = b'<' + b'O' + b'T' + b'1' + b'>'
+        object_tracing_off = b'<' + b'O' + b'T' + b'1' + b'>'   
+        
+        pattern_on = b'<' + b'P' + b'M' + b'1' + b'>'
+        pattern_off = b'<' + b'P' + b'M' + b'0' + b'>'
+        
+        home = b'<' + b'H' + b'>' 
+        
+        joystick_on = b'<' + b'J' + b'S' + b'1' + b'>'
+        joystick_off = b'<' + b'J' + b'S' + b'0' + b'>'
+        
+        circle_on = b'<' + b'C' + b'P' + b'1' + b'>'
+        circle_off = b'<' + b'C' + b'P' + b'0' + b'>'
+        square_on = b'<' + b'S' + b'P' + b'1' + b'>'
+        square_off = b'<' + b'S' + b'P' + b'0' + b'>'
+
         # GLOBAL MODE TAB WIDGET SIZING #
         title_rel_height = 0.08
         title_rel_width = 0.95
@@ -117,6 +142,12 @@ class ContinuumGUI:
         close_rel_height = 0.05
         close_rel_width = 0.02
         tab_title_rely = 0.05
+        
+        w_homing = 0.08
+        h_homing = 0.1
+        
+        x_homing = 0.92
+        y_homing = 0.9
         
         #---# MODE SELECTION TAB #---#
 
@@ -134,8 +165,6 @@ class ContinuumGUI:
                                 anchor='n')
         
         # manual mode
-        manual_on = b'<' + b'M' + b'M' + b'1' + b'>'
-        manual_off = b'<' + b'M' + b'M' + b'0' + b'>'
         manual_button = Button(mode_selection_tab, text='Manual Mode',
                             font=lite_widget_font, bg=DARK_BG, fg=WITE_BG,
                             command = lambda: self.show_tab(manual_tab, 'Manual Mode', manual_on))
@@ -143,8 +172,6 @@ class ContinuumGUI:
                             relheight=mode_sel_relheight, relwidth=mode_sel_relwidth)
                 
         # object tracing mode
-        object_tracing_on = b'<' + b'O' + b'T' + b'1' + b'>'
-        object_tracing_off = b'<' + b'O' + b'T' + b'1' + b'>'
         object_trace_button = Button(mode_selection_tab, text = 'Object Tracing Mode',
                                      font=lite_widget_font, bg=DARK_BG, fg=WITE_BG,
                                      command = lambda: self.show_tab(object_tracing_tab, 'Object Tracing Mode', object_tracing_on))
@@ -152,8 +179,6 @@ class ContinuumGUI:
                                   relheight=mode_sel_relheight, relwidth=mode_sel_relwidth)
 
         # pattern mode
-        pattern_on = b'<' + b'P' + b'M' + b'1' + b'>'
-        pattern_off = b'<' + b'P' + b'M' + b'0' + b'>'
         pattern_button = Button(mode_selection_tab, text = 'Pattern Mode',
                                 font=lite_widget_font, bg=DARK_BG, fg=WITE_BG,
                                 command = lambda: self.show_tab(pattern_tab, 'Pattern Mode', pattern_on))
@@ -162,8 +187,8 @@ class ContinuumGUI:
         
         # mode descriptions
         manual_description_text = 'Manual Mode: Control the continuum robot manually by inputting the amount of pulses for the motors to move.'
-        object_description_text = 'Object Tracing Mode: <add description later>.'
-        pattern_description_text = 'Pattern Tracing Mode: <add description later>.'
+        object_description_text = 'Object Tracing Mode: Utilize computer vision to have the robot follow different colored objects'
+        pattern_description_text = 'Pattern Tracing Mode: Select a shape for the robot to trace in coordinates.'
 
         mode_descriptions_text = ('{:<} \n \n {:<} \n \n {:<}'.format(manual_description_text, object_description_text, pattern_description_text))
 
@@ -181,7 +206,7 @@ class ContinuumGUI:
         exit_gui_button.place(rely=0.9,
                               relheight=0.1, relwidth=0.2)
         
-        #---# MANUAL MODE TAB #---#
+        #---# MANUAL MODE TAB #---#    
         manual_title = Label(manual_tab, text = 'Manual Mode',
                              font=lite_widget_font, bg=DARK_BG, fg=WITE_BG)
         manual_title.place(relx=0.5, rely=tab_title_rely,
@@ -193,11 +218,18 @@ class ContinuumGUI:
                                   command=lambda:self.close_tab(1, manual_off))
         close_manual_tab.place(relx=close_tab_relx, #rely = close_tab_rely,
                                relheight=close_rel_height, relwidth=close_rel_width)
-        exit_gui_from_manual = tk.Button(manual_tab, text="Exit GUI", 
+        exit_gui_from_manual = Button(manual_tab, text='Exit GUI', 
                                         bg=DARK_BG, fg=WITE_BG,
                                         command=self.close_window)
         exit_gui_from_manual.place(relx=0.02, rely=0.88,
                                    relheight=0.1, relwidth=0.2)
+        
+        homing_from_manual = Button(manual_tab, text='Home',
+                                    font=lite_widget_font, 
+                                    bg=LITE_BG, fg=WITE_BG,
+                                    command=lambda:self.set_arduino_mode(home))
+        homing_from_manual.place(relx=x_homing, rely=y_homing,
+                                 relheight=h_homing, relwidth=w_homing)
                 
         # category labels (position, analog control, imu)
 
@@ -317,7 +349,7 @@ class ContinuumGUI:
 
         run_button = Button(manual_tab, text='Run',
                             font=lite_widget_font, bg='#b3ffb3', fg='black',
-                            command=lambda:manual_move_motors(position1, position2))
+                            command=lambda:self.manual_move_motors(position1, position2))
         run_button.place (relx=x_run, rely=y_run, 
                         relwidth=w_run, relheight=h_run)
 
@@ -329,15 +361,12 @@ class ContinuumGUI:
         y_on = 0.3
         y_off = y_on + 0.15
 
-        joystick_on = b'<' + b'J' + b'S' + b'1' + b'>'
-        joystick_off = b'<' + b'J' + b'S' + b'0' + b'>'
-
         on_button = Button(manual_tab, text='On',
                             bg=LITE_BG, font=lite_widget_font,
                             command=lambda:self.set_arduino_mode(joystick_on))
         on_button.place (relx=x_joystick, rely=y_on, 
-                        relwidth=w_joystick, relheight=h_joystick,
-                        anchor = 'n')
+                         relwidth=w_joystick, relheight=h_joystick,
+                         anchor = 'n')
         off_button = Button(manual_tab, text='Off',
                             bg=DARK_BG, font=dark_widget_font,
                             command = lambda:self.set_arduino_mode(joystick_off))
@@ -400,6 +429,13 @@ class ContinuumGUI:
                                         command=self.close_window)
         exit_gui_from_object.place(relx=0.02, rely=0.88,
                             relheight=0.1, relwidth=0.2)
+        
+        homing_from_object = Button(object_tracing_tab, text='Home',
+                                    font=lite_widget_font, 
+                                    bg=LITE_BG, fg=WITE_BG,
+                                    command=lambda:self.set_arduino_mode(home))
+        homing_from_object.place(relx=x_homing, rely=y_homing,
+                                 relheight=h_homing, relwidth=w_homing)
 
         # selection labels
         x_category = 0.125
@@ -428,36 +464,36 @@ class ContinuumGUI:
         x_blue_target = x_green_obstacle + mode_space
 
         calibration_button = Button(object_tracing_tab, text='calibration', font=lite_widget_font,
-                                    command=lambda: send_to_jevois_program('calibration'))
+                                    command=lambda:self.send_to_jevois_program('calibration'))
         calibration_button.place(relx = x_red_calibration, rely=y_mode, 
                                 relheight=h_jevois, relwidth=w_jevois)
 
         obstacle_button = Button(object_tracing_tab, text='obstacle', font=lite_widget_font,
-                                command=lambda: send_to_jevois_program('obstacle'))
+                                command=lambda:self.send_to_jevois_program('obstacle'))
         obstacle_button.place(relx=x_green_obstacle, rely=y_mode, 
                             relheight=h_jevois, relwidth=w_jevois)
 
         target_button = Button(object_tracing_tab, text='target', font=lite_widget_font,
-                            command=lambda: send_to_jevois_program('target'))
+                            command=lambda:self.send_to_jevois_program('target'))
         target_button.place(relx=x_blue_target, rely=y_mode, 
                             relheight=h_jevois, relwidth=w_jevois)         
 
         # color selection buttons
         red_button = Button(object_tracing_tab, text='red', font=lite_widget_font, 
                             activebackground='red',
-                            command=lambda: send_to_jevois_program('red'))
+                            command=lambda:self.send_to_jevois_program('red'))
         red_button.place(relx=x_red_calibration, rely=y_color, 
                         relheight=h_jevois, relwidth=w_jevois)
 
         green_button = Button(object_tracing_tab, text='green', font=lite_widget_font, 
                             activebackground='green',
-                            command=lambda: send_to_jevois_program('green'))
+                            command=lambda:self.send_to_jevois_program('green'))
         green_button.place(relx=x_green_obstacle, rely=y_color, 
                         relheight=h_jevois, relwidth=w_jevois)
 
         blue_button = Button(object_tracing_tab, text='blue', font=lite_widget_font, 
                             activebackground='blue',
-                            command=lambda: send_to_jevois_program('blue'))
+                            command=lambda:self.send_to_jevois_program('blue'))
         blue_button.place(relx=x_blue_target, rely=y_color, 
                         relheight=h_jevois, relwidth=w_jevois)
 
@@ -480,6 +516,13 @@ class ContinuumGUI:
                                         command=self.close_window)
         exit_gui_from_pattern.place(relx=0.02, rely=0.88,
                                     relheight=0.1, relwidth=0.2)
+        
+        homing_from_pattern = Button(pattern_tab, text='Home',
+                                    font=lite_widget_font, 
+                                    bg=LITE_BG, fg=WITE_BG,
+                                    command=lambda:self.set_arduino_mode(home))
+        homing_from_pattern.place(relx=x_homing, rely=y_homing,
+                                 relheight=h_homing, relwidth=w_homing)
 
         # pattern selection
         pattern_space = 0.2
@@ -491,12 +534,6 @@ class ContinuumGUI:
         on_off_space = 0.15
         y_on = 0.2
         y_off = y_on + on_off_space
-
-        circle_on = b'<' + b'C' + b'P' + b'1' + b'>'
-        circle_off = b'<' + b'C' + b'P' + b'0' + b'>'
-        square_on = b'<' + b'S' + b'P' + b'1' + b'>'
-        square_off = b'<' + b'S' + b'P' + b'0' + b'>'
-
 
         select_pattern = Label(pattern_tab, text='select pattern:', 
                             font=dark_widget_font, 
@@ -530,45 +567,87 @@ class ContinuumGUI:
 
         self.running = True
      
-    def send_to_jevois_program(cmd):
+    def gyroSensitivity(self, x):
+        # Create dictionary with standard value of 500 deg/s
+        return {
+            250:  [131.0, 0x00],
+            500:  [65.5,  0x08],
+            1000: [32.8,  0x10],
+            2000: [16.4,  0x18]
+        }.get(x,  [65.5,  0x08])
+
+    def accelerometerSensitivity(self, x):
+        # Create dictionary with standard value of 4 g
+        return {
+            2:  [16384.0, 0x00],
+            4:  [8192.0,  0x08],
+            8:  [4096.0,  0x10],
+            16: [2048.0,  0x18]
+        }.get(x,[8192.0,  0x08])
+
+    def setUp(self):
+        # Activate the MPU-6050
+        self.bus.write_byte_data(self.address, 0x6B, 0x00)
+
+        # Configure the accelerometer
+        self.bus.write_byte_data(self.address, 0x1C, self.accHex)
+
+        # Configure the gyro
+        self.bus.write_byte_data(self.address, 0x1B, self.gyroHex)
+
+        # Display message to user
+        print("MPU set up:")
+        print('\tAccelerometer: ' + str(self.accHex) + ' ' + str(self.accScaleFactor))
+        print('\tGyro: ' + str(self.gyroHex) + ' ' + str(self.gyroScaleFactor) + "\n")
+        time.sleep(2)
+             
+    def send_to_jevois_program(self, cmd):
         """Send commands to the Jevois program to control the camera
 
         Args:
             cmd ([string]): the command to be sent to the jevois program terminal
         """
         # print(cmd)
-        ser1.write((cmd + '\n').encode())
-        time.sleep(1)
+        self.ser1.write((cmd + '\n').encode())
+        # time.sleep(1)
         print('Message was sent to Jevois!')
+        
+    def set_arduino_mode(self,trigger):
+        send_char = trigger
+        print(send_char)
+        self.ser2.write(send_char)    
   
-    def manual_move_motors(motor1, motor2):
+    def manual_move_motors(self, motor1, motor2):
         move_motor1 = b'<' + b'1' + b'p' + motor1.get().encode() + b'>'
         move_motor2 = b'<' + b'2' + b'p' + motor2.get().encode() + b'>'
         print('move to position 1:', move_motor1)
         print('move to position 2:', move_motor2)
+        char = move_motor1 + move_motor2
+        self.set_arduino_mode(char)
+ 
+    def send_axes(self, pitch, yaw):
+        # robot pitch = Ix
+        # robot yaw = Iy
         
-        # serialread2 = ser2.readline()
-        # print(serialread2)
+        x_theta = b'<' + b'I' + b'x' + pitch.encode() + b'>'
+        y_theta = b'<' + b'I' + b'y' + yaw.encode() + b'>'
+        char = x_theta + y_theta
         
-        # ser2.write(x_to_arduino + y_to_arduino)
+        # print('send pitch/yaw: ', char)
+        self.set_arduino_mode(char)
 
-    def trace_trace_move_motors(x, y):
-        global newx_position, newy_position
+    # def trace_trace_move_motors(x, y):
+    #     global newx_position, newy_position
         
-        x_to_arduino = b'<' + b'J' + b'x' + str(x).encode() + b'>'
-        y_to_arduino = b'<' + b'J' + b'y' + str(y).encode() + b'>'
-        print('move to position 1:', x_to_arduino)
-        print('move to position 2:', y_to_arduino)
+    #     x_to_arduino = b'<' + b'J' + b'x' + str(x).encode() + b'>'
+    #     y_to_arduino = b'<' + b'J' + b'y' + str(y).encode() + b'>'
+    #     print('move to position 1:', x_to_arduino)
+    #     print('move to position 2:', y_to_arduino)
         
-        serialread2 = ser2.readline()
-        print(serialread2)
+    #     serialread2 = self.ser2.readline()
+    #     print(serialread2)
         
-        ser2.write(x_to_arduino + y_to_arduino) 
-      
-    def set_arduino_mode(self,trigger):
-        send_char = trigger
-        print(send_char)
-        # ser2.write(send_char)
+    #     self.ser2.write(x_to_arduino + y_to_arduino) 
     
     def show_tab(self, mode_frame, mode_selection, mode):
         self.my_notebook.add(mode_frame, text = mode_selection)
@@ -585,82 +664,125 @@ class ContinuumGUI:
     def close_window(self):
         self.master.destroy()
 
-    def eightBit2sixteenBit(self, reg):
-        # Reads high and low 8 bit values and shifts them into 16 bit
-        h = self.bus.read_byte_data(self.address, reg)
-        l = self.bus.read_byte_data(self.address, reg+1)
-        val = (h << 8) + l
+    # def eightBit2sixteenBit(self, reg):
+    #     # Reads high and low 8 bit values and shifts them into 16 bit
+    #     h = self.bus.read_byte_data(self.address, reg)
+    #     l = self.bus.read_byte_data(self.address, reg+1)
+    #     val = (h << 8) + l
 
-        # Make 16 bit unsigned value to signed value (0 to 65535) to (-32768 to +32767)
-        if (val >= 0x8000):
-            return -((65535 - val) + 1)
-        else:
-            return val
+    #     # Make 16 bit unsigned value to signed value (0 to 65535) to (-32768 to +32767)
+    #     if (val >= 0x8000):
+    #         return -((65535 - val) + 1)
+    #     else:
+    #         return val
         
-    def getRawData(self):
-        self.gx = self.eightBit2sixteenBit(0x43)
-        self.gy = self.eightBit2sixteenBit(0x45)
-        self.gz = self.eightBit2sixteenBit(0x47)
+    # def getRawData(self):
+    #     self.gx = self.eightBit2sixteenBit(0x43)
+    #     self.gy = self.eightBit2sixteenBit(0x45)
+    #     self.gz = self.eightBit2sixteenBit(0x47)
 
-        self.ax = self.eightBit2sixteenBit(0x3B)
-        self.ay = self.eightBit2sixteenBit(0x3D)
-        self.az = self.eightBit2sixteenBit(0x3F)
+    #     self.ax = self.eightBit2sixteenBit(0x3B)
+    #     self.ay = self.eightBit2sixteenBit(0x3D)
+    #     self.az = self.eightBit2sixteenBit(0x3F)
         
-    def processIMUvalues(self):
-        # Update the raw data
-        self.getRawData()
+    # def calibrateGyro(self, N):
+    #     # Display message
+    #     print("Calibrating gyro with " + str(N) + " points. Do not move!")
 
-        # Subtract the offset calibration values
-        self.gx -= self.gyroXcal
-        self.gy -= self.gyroYcal
-        self.gz -= self.gyroZcal
+    #     # Take N readings for each coordinate and add to itself
+    #     for ii in range(N):
+    #         self.getRawData()
+    #         self.gyroXcal += self.gx
+    #         self.gyroYcal += self.gy
+    #         self.gyroZcal += self.gz
 
-        # Convert to instantaneous degrees per second
-        self.gx /= self.gyroScaleFactor
-        self.gy /= self.gyroScaleFactor
-        self.gz /= self.gyroScaleFactor
+    #     # Find average offset value
+    #     self.gyroXcal /= N
+    #     self.gyroYcal /= N
+    #     self.gyroZcal /= N
+
+    #     # Display message and restart timer for comp filter
+    #     print("Calibration complete")
+    #     print("\tX axis offset: " + str(round(self.gyroXcal,1)))
+    #     print("\tY axis offset: " + str(round(self.gyroYcal,1)))
+    #     print("\tZ axis offset: " + str(round(self.gyroZcal,1)) + "\n")
+    #     time.sleep(2)
+    #     self.dtTimer = time.time()
         
+    # def processIMUvalues(self):
+    #     # Update the raw data
+    #     self.getRawData()
 
-        # Convert to g force
-        self.ax /= self.accScaleFactor
-        self.ay /= self.accScaleFactor
-        self.az /= self.accScaleFactor
+    #     # # Subtract the offset calibration values
+    #     # self.gx -= self.gyroXcal
+    #     # self.gy -= self.gyroYcal
+    #     # self.gz -= self.gyroZcal
+
+    #     # Convert to instantaneous degrees per second
+    #     self.gx /= self.gyroScaleFactor
+    #     self.gy /= self.gyroScaleFactor
+    #     self.gz /= self.gyroScaleFactor
+
+    #     # # Convert to g force
+    #     self.ax /= self.accScaleFactor
+    #     self.ay /= self.accScaleFactor
+    #     self.az /= self.accScaleFactor
     
-    @classmethod    
-    def compFilter(cls, self):
+
+    def compFilter(self):
         if self.running: 
-            # Get the processed values from IMU
-            self.processIMUvalues()
+            # # Get the processed values from IMU
+            # self.processIMUvalues()
 
-            # Get delta time and record time for next call
-            dt = time.time() - self.dtTimer
-            self.dtTimer = time.time()
+            # # Get delta time and record time for next call
+            # dt = time.time() - self.dtTimer
+            # self.dtTimer = time.time()
 
-            # Acceleration vector angle
-            accPitch = math.degrees(math.atan2(self.ay, self.az))
-            accRoll = math.degrees(math.atan2(self.ax, self.az))
+            # # Acceleration vector angle
+            # accPitch = math.degrees(math.atan2(self.ay, self.az))
+            # accRoll = math.degrees(math.atan2(self.ax, self.az))
 
-            # Gyro integration angle
-            self.gyroRoll -= self.gy * dt # y
-            self.gyroPitch += self.gx * dt # x
-            self.gyroYaw += self.gz * dt
-            self.yaw = self.gyroYaw
+            # # Gyro integration angle
+            # self.gyroRoll -= self.gy * dt # y
+            # self.gyroPitch += self.gx * dt # x
+            # self.gyroYaw += self.gz * dt
+            # self.yaw = self.gyroYaw
             
-            # Comp filter
-            # imu roll = robot yaw
-            self.roll = (self.tau)*(self.roll - self.gy*dt) + (1-self.tau)*(accRoll)
-            # imu pitch = robot pitch
-            self.pitch = (self.tau)*(self.pitch + self.gx*dt) + (1-self.tau)*(accPitch)
-
-            # Print data
-            yaw_text.set(str(self.roll))
-            pitch_text.set(str(self.pitch))
-
-            print(" R: " + str(round(self.roll,1)) \
-                + " P: " + str(round(self.pitch,1)))
-            #     + " Y: " + str(round(self.yaw,1)))
+            # # Comp filter
+            # # imu roll = robot pitch = Ix
+            # self.roll = (self.tau)*(self.roll + self.gy*dt) + (1-self.tau)*(accRoll)
+            # # imu pitch = robot yaw = Iy
+            # self.pitch = (self.tau)*(self.pitch + self.gx*dt) + (1-self.tau)*(accPitch)
             
-        self.master.after(1, self.compFilter)
+            # self.roll_str = round(self.roll, 2)
+            # self.roll_str = '%.1f' % round(self.roll_str, 1)
+            
+            # self.pitch_str = round(self.pitch, 2)
+            # self.pitch_str = '%.1f' % round(self.pitch_str, 1)
+            
+            # # Print data - robot's pitch and yaw
+            # self.yaw_text.set(self.pitch_str)
+            # self.pitch_text.set(self.roll_str)
+            
+            # print(" R: " \
+            #     + " P: " + str(round(self.roll,1)) \
+            #     + " Y: " + str(round(self.pitch,1)))
+            
+            # # print("Get IMU Data")
+            # # print("\tRobot Yaw: " + self.pitch_str)
+            # # print("\tRobot Pitch: " + self.roll_str)
+
+            # # Send pitch and yaw to arduino
+            # # def send_axes(self, pitch, yaw):
+            # self.send_axes(self.roll_str, self.pitch_str)  
+                    
+
+            # # print(" R: " + str(round(self.roll,1)) \
+            # #     + " P: " + str(round(self.pitch,1)))
+            # #     + " Y: " + str(round(self.yaw,1)))
+            time.sleep(0.5)
+            
+        self.master.after(20, self.compFilter)
         
 def main():
     ## Set up class
@@ -670,6 +792,8 @@ def main():
     tau = 0.98
     
     cbot = ContinuumGUI(root, gyro, acc, tau)
+    cbot.setUp()
+    # cbot.calibrateGyro(300)
     cbot.compFilter()
     root.mainloop()
 
@@ -678,6 +802,3 @@ def main():
 
 if __name__ == '__main__':
 	main()
- 
-#  root.after(1000, cbot.compFilter)
-#  root.mainloop()

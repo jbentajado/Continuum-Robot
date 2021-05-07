@@ -30,6 +30,8 @@ class MPU:
 
         self.bus = smbus.SMBus(1)
         self.address = 0x68
+        
+        self.running = True
 
     def gyroSensitivity(self, x):
         # Create dictionary with standard value of 500 deg/s
@@ -127,10 +129,10 @@ class MPU:
         print("\tgy: " + str(round(self.gy,1)))
         print("\tgz: " + str(round(self.gz,1)))
 
-        # Subtract the offset calibration values
-        self.gx -= self.gyroXcal
-        self.gy -= self.gyroYcal
-        self.gz -= self.gyroZcal
+        # # # Subtract the offset calibration values
+        # self.gx -= self.gyroXcal
+        # self.gy -= self.gyroYcal
+        # self.gz -= self.gyroZcal
 
         # Convert to instantaneous degrees per second
         self.gx /= self.gyroScaleFactor
@@ -144,39 +146,42 @@ class MPU:
         self.az /= self.accScaleFactor
 
     def compFilter(self):
-        # Get the processed values from IMU
-        self.processIMUvalues()
+        if self.running: 
+            # Get the processed values from IMU
+            self.processIMUvalues()
 
-        # Get delta time and record time for next call
-        dt = time.time() - self.dtTimer
-        self.dtTimer = time.time()
+            # Get delta time and record time for next call
+            dt = time.time() - self.dtTimer
+            self.dtTimer = time.time()
 
-        # Acceleration vector angle
-        accPitch = math.degrees(math.atan2(self.ay, self.az))
-        accRoll = math.degrees(math.atan2(self.ax, self.az))
+            # Acceleration vector angle
+            accPitch = math.degrees(math.atan2(self.ay, self.az))
+            accRoll = math.degrees(math.atan2(self.ax, self.az))
 
-        # Gyro integration angle
-        self.gyroRoll -= self.gy * dt # y
-        self.gyroPitch += self.gx * dt # x
-        self.gyroYaw += self.gz * dt
-        self.yaw = self.gyroYaw
-        
-        # print("Get Raw Data")
-        # print("\tself.gyroRoll: " + str(round(self.gyroRoll,1)))
-        # print("\tself.gyroPitch: " + str(round(self.gyroPitch,1)))
-        # print("\tself.gyroYaw: " + str(round(self.gyroYaw,1)))
+            # Gyro integration angle
+            self.gyroRoll -= self.gy * dt # y
+            self.gyroPitch += self.gx * dt # x
+            self.gyroYaw += self.gz * dt
+            self.yaw = self.gyroYaw
+            
+            # print("Get Raw Data")
+            # print("\tself.gyroRoll: " + str(round(self.gyroRoll,1)))
+            # print("\tself.gyroPitch: " + str(round(self.gyroPitch,1)))
+            # print("\tself.gyroYaw: " + str(round(self.gyroYaw,1)))
 
-        # Comp filter
-        self.roll = (self.tau)*(self.roll - self.gy*dt) + (1-self.tau)*(accRoll)
-        self.pitch = (self.tau)*(self.pitch + self.gx*dt) + (1-self.tau)*(accPitch)
+            # Comp filter
+            self.roll = (self.tau)*(self.roll - self.gy*dt) + (1-self.tau)*(accRoll)
+            self.pitch = (self.tau)*(self.pitch + self.gx*dt) + (1-self.tau)*(accPitch)
 
-        # Print data
-        print(self.gyroRoll)
-        print(self.gyroPitch)
-        
-        print(" R: " + str(round(self.roll,1)) \
-            + " P: " + str(round(self.pitch,1)) \
-            + " Y: " + str(round(self.yaw,1)))
+            # Print data
+            print(self.gyroRoll)
+            print(self.gyroPitch)
+            
+            print(" R: " + str(round(self.roll,1)) \
+                + " P: " + str(round(self.pitch,1)) \
+                + " Y: " + str(round(self.yaw,1)))
+            
+        # self.after(200, self.compFilter)
 
 def main():
     # Set up class
@@ -186,13 +191,15 @@ def main():
     mpu = MPU(gyro, acc, tau)
 
     # Set up sensor and calibrate gyro with N points
-    mpu.setUp()
-    mpu.calibrateGyro(500)
+    # mpu.setUp()
+    # mpu.calibrateGyro(500)
 
     # Run for 20 secounds
     startTime = time.time()
     while(time.time() < (startTime + 20)):
         mpu.compFilter()
+        
+    # mpu.compFilter()
 
     # End
     print("Closing")
