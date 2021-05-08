@@ -306,9 +306,13 @@ circle_on = b'<' + b'C' + b'P' + b'1' + b'>'
 circle_off = b'<' + b'C' + b'P' + b'0' + b'>'
 square_on = b'<' + b'S' + b'P' + b'1' + b'>'
 square_off = b'<' + b'S' + b'P' + b'0' + b'>'
+ribbon_on = b'<' + b'R' + b'P' + b'1' + b'>'
 
 run_on = lambda: [set_arduino_mode(manual_on),
                   manual_move_motors(position1, position2)]
+
+pattern_on = lambda: [set_arduino_mode(circle_on),
+                      set_arduino_mode(square_on)]
         
 close_manual_all = lambda: [close_tab(1),
                             set_arduino_mode(manual_off),
@@ -760,35 +764,53 @@ on_off_space = 0.15
 y_on = 0.2
 y_off = y_on + on_off_space
 
-select_pattern = Label(pattern_tab, text='select pattern:', 
+toggle_circle_square = Label(pattern_tab, text='Run Circle/Square:', 
                        font=dark_widget_font, 
                        bg=DARK_BG, fg=WITE_BG)
-select_pattern.place(relx=x_pattern, rely=y_on,
+toggle_circle_square.place(relx=x_pattern, rely=y_on,
                      relheight=h_jevois, relwidth=w_jevois)
 
-circle_mode_on = Button(pattern_tab, text='circle on', 
+toggle_ribbon = Label(pattern_tab, text='Run Ribbon:', 
+                       font=dark_widget_font, 
+                       bg=DARK_BG, fg=WITE_BG)
+toggle_ribbon.place(relx=x_pattern, rely=y_on,
+                     relheight=h_jevois, relwidth=w_jevois)
+
+circle_square_on = Button(pattern_tab, text='Run', 
                         font=lite_widget_font, bg=LITE_BG,
-                        command=lambda: set_arduino_mode(circle_on))
-circle_mode_on.place(relx=x_circle, rely=y_on, 
+                        command=pattern_on)
+circle_square_on.place(relx=x_circle, rely=y_on, 
                      relheight=h_jevois, relwidth=w_jevois)
 
-circle_mode_off = Button(pattern_tab, text='circle off', font=lite_widget_font, 
-                         bg=DARK_BG, fg=WITE_BG,
-                         command=lambda: set_arduino_mode(circle_off))
-circle_mode_off.place(relx=x_circle, rely=y_off, 
-                      relheight=h_jevois, relwidth=w_jevois)
-
-square_mode_on = Button(pattern_tab, text='square on', 
+ribbon_on = Button(pattern_tab, text='Run Ribbon', 
                         font=lite_widget_font, bg=LITE_BG,
-                        command=lambda: set_arduino_mode(square_on))
-square_mode_on.place(relx=x_square, rely=y_on, 
+                        command=lambda: set_arduino_mode(ribbon_on))
+ribbon_on.place(relx=x_square, rely=y_on, 
                      relheight=h_jevois, relwidth=w_jevois)
 
-square_mode_off = Button(pattern_tab, text='square off', font=lite_widget_font, 
-                         bg=DARK_BG, fg=WITE_BG,
-                         command=lambda: set_arduino_mode(square_off))
-square_mode_off.place(relx=x_square, rely=y_off, 
-                      relheight=h_jevois, relwidth=w_jevois)
+# circle_mode_on = Button(pattern_tab, text='circle on', 
+#                         font=lite_widget_font, bg=LITE_BG,
+#                         command=lambda: set_arduino_mode(circle_on))
+# circle_mode_on.place(relx=x_circle, rely=y_on, 
+#                      relheight=h_jevois, relwidth=w_jevois)
+
+# circle_mode_off = Button(pattern_tab, text='circle off', font=lite_widget_font, 
+#                          bg=DARK_BG, fg=WITE_BG,
+#                          command=lambda: set_arduino_mode(circle_off))
+# circle_mode_off.place(relx=x_circle, rely=y_off, 
+#                       relheight=h_jevois, relwidth=w_jevois)
+
+# square_mode_on = Button(pattern_tab, text='square on', 
+#                         font=lite_widget_font, bg=LITE_BG,
+#                         command=lambda: set_arduino_mode(square_on))
+# square_mode_on.place(relx=x_square, rely=y_on, 
+#                      relheight=h_jevois, relwidth=w_jevois)
+
+# square_mode_off = Button(pattern_tab, text='square off', font=lite_widget_font, 
+#                          bg=DARK_BG, fg=WITE_BG,
+#                          command=lambda: set_arduino_mode(square_off))
+# square_mode_off.place(relx=x_square, rely=y_off, 
+#                       relheight=h_jevois, relwidth=w_jevois)
 
 root.after(1000, run) # after 1 s, call run()
 root.mainloop()
