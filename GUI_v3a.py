@@ -19,59 +19,59 @@ import tkinter as tk
 import tkinter.font
 
 # from adafruit_mpu6050 import MPU6050
-from mpu6050 import mpu6050
-from compFilter2 import complementaryFilter
-
-mpu = mpu6050(0x68)
-
-dtTimer = 0
-imu_roll = 0
-imu_pitch = 0
-
-gyroRoll = 0
-gyroPitch = 0
-gyroYaw = 0
-
-newx_position = 0 
-newy_position = 0   
+# from mpu6050 import mpu6050
+# from compFilter2 import complementaryFilter
+# 
+# mpu = mpu6050(0x68)
+# 
+# dtTimer = 0
+# imu_roll = 0
+# imu_pitch = 0
+# 
+# gyroRoll = 0
+# gyroPitch = 0
+# gyroYaw = 0
+# 
+# newx_position = 0 
+# newy_position = 0   
  
 ### HARDWARE ### 
 # I2C - IMU
 # mpu6050 = MPU6050(board.I2C())           # base accel & gyro sensor
 
 # From setUp()
-accHex = 0
-gyroHex = 0
+# accHex = 0
+# gyroHex = 0
 
 # Setup
-bus = smbus.SMBus(1)
-address = 0x68
+# bus = smbus.SMBus(1)
+# address = 0x68
 
 # activate the mpu6050
-bus.write_byte_data(address, 0x6B, 0x00)
+# bus.write_byte_data(address, 0x6B, 0x00)
 
 # configure the accelerometer
-bus.write_byte_data(address, 0x1C, accHex)
+# bus.write_byte_data(address, 0x1C, accHex)
 
 # configure the gyroscope
-bus.write_byte_data(address, 0x1B, gyroHex)
-
-dtTimer = 0
-gyroRoll = 0
-gyroPitch = 0
-gyroYaw = 0
-
-roll = 0
-pitch = 0
-yaw = 0
+# bus.write_byte_data(address, 0x1B, gyroHex)
+# 
+# dtTimer = 0
+# gyroRoll = 0
+# gyroPitch = 0
+# gyroYaw = 0
+# 
+# roll = 0
+# pitch = 0
+# yaw = 0
 
 # From gyroscope calibration - offsets
-gyroXcal = -331.7
-gyroYcal = -339.4
-gyroZcal = -206.0
-
-accScaleFactor = 16384.0
-gyroScaleFactor = 131.0
+# gyroXcal = -331.7
+# gyroYcal = -339.4
+# gyroZcal = -206.0
+# 
+# accScaleFactor = 16384.0
+# gyroScaleFactor = 131.0
 
 # Serial - Jevois
 # jevois_baudrate = 115200
@@ -82,7 +82,7 @@ gyroScaleFactor = 131.0
 
 # Serial - Arduino
 arduino_baudrate = 115200 
-com_port2 = '/dev/ttyACM2'
+com_port2 = '/dev/ttyACM0'
 ser2 = serial.Serial(port = com_port2, baudrate = arduino_baudrate, timeout = 0)    # my port = '/dev/ttyACM0'
 
 ### GUI DEFINITIONS ###
@@ -154,7 +154,7 @@ def send_to_jevois_program(cmd):
         cmd ([string]): the command to be sent to the jevois program terminal
     """
     # print(cmd)
-    ser1.write((cmd + '\n').encode())
+    ser2.write((cmd + '\n').esncode())
     time.sleep(1)
     print('send: ' + cmd)
     # print('Message was sent to Jevois!')
@@ -215,13 +215,12 @@ def run():
     global dtTimer, imu_roll, imu_pitch, gyroRoll, gyroPitch, gyroYaw
     if running:
         # print('blah')
-        '''
         # Read Raw data
         accel_data = mpu.get_accel_data() 
         gyro_data = mpu.get_gyro_data()
         
         ### ozzmaker - Convert the Raw values to usable angles
-        G_GAIN = 0.07
+        G_GAIN = 0.007
         rate_gyr_x = gyro_data['x'] * G_GAIN
         rate_gyr_y = gyro_data['y'] * G_GAIN
             
@@ -230,8 +229,11 @@ def run():
         dtTimer = time.time()
         
         # Accelerometer angle
-        accPitch = math.degrees(math.atan2(accel_data['y'], accel_data['z']))
-        accRoll = math.degrees(math.atan2(accel_data['x'], accel_data['z']))
+        ACCEL_GAIN = 16384
+#         accPitch = math.degrees(math.atan2(accel_data['y']/ACCEL_GAIN, accel_data['z']/ACCEL_GAIN))
+#         accRoll = math.degrees(math.atan2(accel_data['x']/ACCEL_GAIN, accel_data['z']/ACCEL_GAIN))
+        accPitch = math.degrees(math.atan((accel_data['y']/ACCEL_GAIN)/(math.sqrt(((accel_data['x']/ACCEL_GAIN)**2)+((accel_data['z']/ACCEL_GAIN)**2)))))
+        accRoll = math.degrees(math.atan((-1*(accel_data['x']/ACCEL_GAIN))/(math.sqrt(((accel_data['y']/ACCEL_GAIN)**2)+((accel_data['z']/ACCEL_GAIN)**2)))))
         
         # Gyroscope integration angle
         # gyroRoll += gyro_data['y']*dt 
@@ -268,7 +270,6 @@ def run():
         print(" R: " \
                     + "Robot P: " + cbot_pitch \
                     + "Robot Y: " + cbot_yaw)
-        '''
         time.sleep(0.5)
                 
     if not running:
@@ -292,7 +293,13 @@ manual_on = b'<' + b'M' + b'M' + b'1' + b'>'
 manual_off = b'<' + b'M' + b'M' + b'0' + b'>'    
 
 object_tracing_on = b'<' + b'O' + b'T' + b'1' + b'>'
-object_tracing_off = b'<' + b'O' + b'T' + b'0' + b'>'   
+object_tracing_off = b'<' + b'O' + b'T' + b'0' + b'>'
+jevois_calibration_arduino = b'<' + b'C' + b'A' + b'L' + b'>'
+jevois_target_arduino = b'<' + b'T' + b'A' + b'R' + b'>'
+jevois_obstacle_arduino = b'<' + b'O' + b'B' + b'S' + b'>'
+jevois_green_arduino = b'<' + b'G' + b'R' + b'>'
+jevois_blue_arduino = b'<' + b'B' + b'L' + b'>'
+jevois_red_arduino = b'<' + b'R' + b'E' + b'D' + b'>'
 
 pattern_on = b'<' + b'P' + b'M' + b'1' + b'>'
 pattern_off = b'<' + b'P' + b'M' + b'0' + b'>'
@@ -688,36 +695,36 @@ x_green_obstacle = x_red_calibration + mode_space
 x_blue_target = x_green_obstacle + mode_space
 
 calibration_button = Button(object_tracing_tab, text='calibration', font=lite_widget_font,
-                            command=lambda: send_to_jevois_program('calibration'))
+                            command=lambda: set_arduino_mode(jevois_calibration_arduino))
 calibration_button.place(relx = x_red_calibration, rely=y_mode, 
                          relheight=h_jevois, relwidth=w_jevois)
 
 obstacle_button = Button(object_tracing_tab, text='obstacle', font=lite_widget_font,
-                         command=lambda: send_to_jevois_program('obstacle'))
+                         command=lambda: set_arduino_mode(jevois_obstacle_arduino))
 obstacle_button.place(relx=x_green_obstacle, rely=y_mode, 
                       relheight=h_jevois, relwidth=w_jevois)
 
 target_button = Button(object_tracing_tab, text='target', font=lite_widget_font,
-                       command=lambda: send_to_jevois_program('target'))
+                       command=lambda: set_arduino_mode(jevois_target_arduino))
 target_button.place(relx=x_blue_target, rely=y_mode, 
                     relheight=h_jevois, relwidth=w_jevois)         
 
 # color selection buttons
 red_button = Button(object_tracing_tab, text='red', font=lite_widget_font, 
                     activebackground='red',
-                    command=lambda: send_to_jevois_program('red'))
+                    command=lambda: set_arduino_mode(jevois_red_arduino))
 red_button.place(relx=x_red_calibration, rely=y_color, 
                  relheight=h_jevois, relwidth=w_jevois)
 
 green_button = Button(object_tracing_tab, text='green', font=lite_widget_font, 
                       activebackground='green',
-                      command=lambda: send_to_jevois_program('green'))
+                      command=lambda: set_arduino_mode(jevois_green_arduino))
 green_button.place(relx=x_green_obstacle, rely=y_color, 
                    relheight=h_jevois, relwidth=w_jevois)
 
 blue_button = Button(object_tracing_tab, text='blue', font=lite_widget_font, 
                      activebackground='blue',
-                     command=lambda: send_to_jevois_program('blue'))
+                     command=lambda: set_arduino_mode(jevois_blue_arduino))
 blue_button.place(relx=x_blue_target, rely=y_color, 
                   relheight=h_jevois, relwidth=w_jevois)
 

@@ -129,10 +129,10 @@ class MPU:
         print("\tgy: " + str(round(self.gy,1)))
         print("\tgz: " + str(round(self.gz,1)))
 
-        # # # Subtract the offset calibration values
-        # self.gx -= self.gyroXcal
-        # self.gy -= self.gyroYcal
-        # self.gz -= self.gyroZcal
+        # # Subtract the offset calibration values
+        self.gx -= self.gyroXcal
+        self.gy -= self.gyroYcal
+        self.gz -= self.gyroZcal
 
         # Convert to instantaneous degrees per second
         self.gx /= self.gyroScaleFactor
