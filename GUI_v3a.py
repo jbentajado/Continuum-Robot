@@ -212,65 +212,13 @@ def close_tab(i_tab): #, mode):
     my_notebook.select(0)
 
 def run():
-    global dtTimer, imu_roll, imu_pitch, gyroRoll, gyroPitch, gyroYaw
     if running:
         # print('blah')
         # Read Raw data
-        accel_data = mpu.get_accel_data() 
-        gyro_data = mpu.get_gyro_data()
-        
-        ### ozzmaker - Convert the Raw values to usable angles
-        G_GAIN = 0.007
-        rate_gyr_x = gyro_data['x'] * G_GAIN
-        rate_gyr_y = gyro_data['y'] * G_GAIN
-            
-        # Calculate dt
-        dt = time.time() - dtTimer
-        dtTimer = time.time()
-        
-        # Accelerometer angle
-        ACCEL_GAIN = 16384
-#         accPitch = math.degrees(math.atan2(accel_data['y']/ACCEL_GAIN, accel_data['z']/ACCEL_GAIN))
-#         accRoll = math.degrees(math.atan2(accel_data['x']/ACCEL_GAIN, accel_data['z']/ACCEL_GAIN))
-        accPitch = math.degrees(math.atan((accel_data['y']/ACCEL_GAIN)/(math.sqrt(((accel_data['x']/ACCEL_GAIN)**2)+((accel_data['z']/ACCEL_GAIN)**2)))))
-        accRoll = math.degrees(math.atan((-1*(accel_data['x']/ACCEL_GAIN))/(math.sqrt(((accel_data['y']/ACCEL_GAIN)**2)+((accel_data['z']/ACCEL_GAIN)**2)))))
-        
-        # Gyroscope integration angle
-        # gyroRoll += gyro_data['y']*dt 
-        # gyroPitch += gyro_data['x']*dt
-        # gyroYaw += gyro_data['z']*dt
-        # yaw = gyroYaw 
-        
-        #ozzmaker
-        gyroRoll += rate_gyr_x*dt 
-        gyroPitch += rate_gyr_y*dt
-        
-        # Complementary Filter - about IMU axes
-        tau = 0.98
-        # imu_roll = (tau)*(imu_roll + gyro_data['y']*dt) + (1-tau)*(accRoll)
-        # imu_pitch = (tau)*(imu_pitch + gyro_data['x']*dt) + (1-tau)*(accPitch)
-        
-        #ozzmaker
-        imu_roll = (tau)*(imu_roll + rate_gyr_x*dt) + (1-tau)*(accRoll)
-        imu_pitch = (tau)*(imu_pitch + rate_gyr_y*dt) + (1-tau)*(accPitch)
-        
-        # Define robot pitch and yaw
-        cbot_yaw = str(imu_pitch)
-        cbot_pitch = str(imu_roll)
-        # cbot_yaw = '%.1f' % round(imu_pitch, 1)
-        # cbot_pitch = '%.1f' % round(imu_roll, 1)
-        
-        # Send robot's pitch and yaw to arduino
-        # send_axes(cbot_pitch, cbot_yaw)
-        
-        # Update GUI Labels
-        cbot_pitch_text.set(cbot_pitch)
-        cbot_yaw_text.set(cbot_yaw)
-        
-        print(" R: " \
-                    + "Robot P: " + cbot_pitch \
-                    + "Robot Y: " + cbot_yaw)
-        time.sleep(0.5)
+
+        readArduino = ser2.readline()
+        print(readArduino)
+#          time.sleep(0.5)
                 
     if not running:
         print("Program not running")
