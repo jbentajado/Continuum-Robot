@@ -1,6 +1,7 @@
 import libjevois as jevois
 import cv2
 import numpy as np
+import math
 
 ## Contains all CV algorithms for each state
 #
@@ -72,7 +73,7 @@ class ContinuumRoboticsMasterModule:
         params = cv2.SimpleBlobDetector_Params()
         params.filterByCircularity = False
         params.filterByArea = True
-        params.minArea = 100
+        params.minArea = 40
         self.detector = cv2.SimpleBlobDetector_create(params)
  
         # Create a morpho kernel (this was not in the original code?)
@@ -135,7 +136,7 @@ class ContinuumRoboticsMasterModule:
                 y_center = y - (height/2)     #120 = 1/2 of screen length
                 
                 area = keypoints[i].size    #Pixel area and distance are inversely related
-                dist = ((1/area)*1000)-2        # Still needs conversion rate
+                dist = ((1/area)*2000)-2        # Still needs conversion rate
                 
                 color_cntrl = 255
                 if int(x_center) == 0 and int(y_center) == 0 :
@@ -150,10 +151,14 @@ class ContinuumRoboticsMasterModule:
                     
                 cv2.putText(img_with_keypoints, "Dist: {} cm".format(int(dist)),  (10, 25), cv2.FONT_HERSHEY_PLAIN,
                             1, (0, 255, color_cntrl, color_cntrl))
-                cv2.putText(img_with_keypoints, "X: {}".format(int(x_center)), (10, 35), cv2.FONT_HERSHEY_PLAIN,
+                # *** Addition of Radial Distance Calculation ***
+                cv2.putText(img_with_keypoints, "Radial dist: {} cm".format(int(sqrt((x_center^2) + (y_center^2)))), (10, 35), cv2.FONT_HERSHEY_PLAIN,
+                            .75, (0, 255, color_cntrl, color_cntrl))   
+                # *** Changes to how X and Y is calculated ONLY on display and not serial output ***
+                cv2.putText(img_with_keypoints, "X: {} cm".format(int(x_center/2)), (10, 45), cv2.FONT_HERSHEY_PLAIN,
                             .75, (0, 255, color_cntrl, color_cntrl))
-                cv2.putText(img_with_keypoints, "Y: {}".format(int(y_center)), (10, 45), cv2.FONT_HERSHEY_PLAIN,
-                            .75, (0, 255, color_cntrl, color_cntrl))
+                cv2.putText(img_with_keypoints, "Y: {} cm".format(int(y_center/2)), (10, 55), cv2.FONT_HERSHEY_PLAIN,
+                            .75, (0, 255, color_cntrl, color_cntrl))             
                             
             # Write frames/s info from our timer (NOTE: does not account for output conversion time):
             fps = self.timer.stop()
@@ -255,12 +260,13 @@ class ContinuumRoboticsMasterModule:
             self.timer.start()
             # filter noise
             blur = cv2.GaussianBlur(inimg, (3, 3), 0, 0)
+            blur = cv2.blur(blur, (3, 3))
+            #blur = cv2.bilateralFilter(inimg,9,75,75)
             hsv = cv2.cvtColor(blur, cv2.COLOR_BGR2HSV)
-            #blur = cv2.Laplacian(hsv, -1, ksize=5, scale=0.25, delta=127)
             
             target = self.target
             if target is None:
-                target = "green"
+                target = "blue"
             
             if target == "red":
                 lower=np.array([0,150,0],np.uint8)
@@ -269,7 +275,7 @@ class ContinuumRoboticsMasterModule:
                 lower = np.array([40,150,0],np.uint8)
                 upper = np.array([80,255,255],np.uint8)
             elif target == "blue":
-                lower = np.array([100,150,0],np.uint8)
+                lower = np.array([100,150,40],np.uint8)
                 upper = np.array([140,255,255],np.uint8)
                 
             mask = cv2.inRange(hsv, lower, upper)
@@ -284,9 +290,9 @@ class ContinuumRoboticsMasterModule:
             # Also convert it to grayscale for processing:
             grayImage = cv2.cvtColor(res, cv2.COLOR_BGR2GRAY)
             # filter noise
-            grayImage = cv2.GaussianBlur(grayImage, (3, 3), 0, 0)
+            grayImage = cv2.GaussianBlur(grayImage, (5, 5), 0, 0)
             # filter noise
-            grayImage = cv2.blur(grayImage, (5, 5))
+            grayImage = cv2.blur(grayImage, (7, 7))
             # apply automatic threshold
             ret, grayImage = cv2.threshold(grayImage, 127, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
             # background area
@@ -375,9 +381,12 @@ class ContinuumRoboticsMasterModule:
                 #conv_dist = str(int(dist))
                 conv_x = (int(x_center))
                 conv_y = (int(y_center))
+      
                 #datasend = [conv_dist,conv_x,conv_y]
                 
-                jevois.sendSerial('{}x{}'.format(conv_x,conv_y))
+                #jevois.sendSerial('{}x{}'.format(conv_x,conv_y))
+                jevois.sendSerial('<Jx{}><Jy{}>'.format(conv_x,conv_y))
+                #jevois.sendSerial(b'<' + bytes([conv_x]) + b'>' + b'<' + bytes([conv_y]) + b'>')
         
     # ###################################################################################################
     ## Process function with no USB output
