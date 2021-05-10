@@ -17,61 +17,10 @@ from tkinter import *
 from tkinter import ttk
 import tkinter as tk
 import tkinter.font
-
-# from adafruit_mpu6050 import MPU6050
-# from mpu6050 import mpu6050
-# from compFilter2 import complementaryFilter
-# 
-# mpu = mpu6050(0x68)
-# 
-# dtTimer = 0
-# imu_roll = 0
-# imu_pitch = 0
-# 
-# gyroRoll = 0
-# gyroPitch = 0
-# gyroYaw = 0
-# 
-# newx_position = 0 
-# newy_position = 0   
  
 ### HARDWARE ### 
 # I2C - IMU
 # mpu6050 = MPU6050(board.I2C())           # base accel & gyro sensor
-
-# From setUp()
-# accHex = 0
-# gyroHex = 0
-
-# Setup
-# bus = smbus.SMBus(1)
-# address = 0x68
-
-# activate the mpu6050
-# bus.write_byte_data(address, 0x6B, 0x00)
-
-# configure the accelerometer
-# bus.write_byte_data(address, 0x1C, accHex)
-
-# configure the gyroscope
-# bus.write_byte_data(address, 0x1B, gyroHex)
-# 
-# dtTimer = 0
-# gyroRoll = 0
-# gyroPitch = 0
-# gyroYaw = 0
-# 
-# roll = 0
-# pitch = 0
-# yaw = 0
-
-# From gyroscope calibration - offsets
-# gyroXcal = -331.7
-# gyroYcal = -339.4
-# gyroZcal = -206.0
-# 
-# accScaleFactor = 16384.0
-# gyroScaleFactor = 131.0
 
 # Serial - Jevois
 # jevois_baudrate = 115200
@@ -81,9 +30,9 @@ import tkinter.font
 #                      bytesize=serial.EIGHTBITS, timeout=1)
 
 # Serial - Arduino
-arduino_baudrate = 115200 
-com_port2 = '/dev/ttyACM0'
-ser2 = serial.Serial(port = com_port2, baudrate = arduino_baudrate, timeout = 0)    # my port = '/dev/ttyACM0'
+# arduino_baudrate = 115200 
+# com_port2 = '/dev/ttyACM0'
+# ser2 = serial.Serial(port = com_port2, baudrate = arduino_baudrate, timeout = 0)    # my port = '/dev/ttyACM0'
 
 ### GUI DEFINITIONS ###
 # HEIGHT = 500   # pixels
@@ -153,8 +102,8 @@ def send_to_jevois_program(cmd):
     Args:
         cmd ([string]): the command to be sent to the jevois program terminal
     """
-    # print(cmd)
-    ser2.write((cmd + '\n').esncode())
+    print(cmd)
+    # ser2.write((cmd + '\n').esncode())
     time.sleep(1)
     print('send: ' + cmd)
     # print('Message was sent to Jevois!')
@@ -170,12 +119,12 @@ def trace_trace_move_motors(x, y):
     # serialread2 = ser2.readline()
     # print(serialread2)
     
-    ser2.write(x_to_arduino + y_to_arduino)
+    # ser2.write(x_to_arduino + y_to_arduino)
 
 def set_arduino_mode(trigger):
     send_char = trigger
     print('arduino mode: ' + str(trigger))
-    ser2.write(send_char)
+    # ser2.write(send_char)
     
 def manual_move_motors(motor1, motor2):
     move_motor1 = b'<' + b'1' + b'p' + motor1.get().encode() + b'>'
@@ -185,16 +134,16 @@ def manual_move_motors(motor1, motor2):
     char = move_motor1 + move_motor2
     set_arduino_mode(char)
 
-def send_axes(pitch, yaw):
-    # robot pitch = Ix 
-    # robot yaw = Iy
+# def send_axes(pitch, yaw):
+#     # robot pitch = Ix 
+#     # robot yaw = Iy
     
-    x_theta = b'<' + b'I' + b'x' + pitch.encode() + b'>'
-    y_theta = b'<' + b'I' + b'y' + yaw.encode() + b'>'
-    char = x_theta + y_theta
+#     x_theta = b'<' + b'I' + b'x' + pitch.encode() + b'>'
+#     y_theta = b'<' + b'I' + b'y' + yaw.encode() + b'>'
+#     char = x_theta + y_theta
     
-    # print('send pitch/yaw: ', char)
-    set_arduino_mode(char)
+#     # print('send pitch/yaw: ', char)
+#     set_arduino_mode(char)
 
 def show_tab(mode_frame, mode_selection, mode):
     my_notebook.add(mode_frame, text = mode_selection)
@@ -203,29 +152,36 @@ def show_tab(mode_frame, mode_selection, mode):
     print(mode)
     set_arduino_mode(mode)
     
-def close_tab(i_tab): #, mode):
+def close_tab(i_tab, clear_modes):
     my_notebook.hide(i_tab)
     print('closed tab')
-    # set_arduino_mode(mode)
+    set_arduino_mode(clear_modes)
     
     my_notebook.tab(0, state='normal')
     my_notebook.select(0)
+    
+def change_button_state(buttons, state):
+    for button in buttons:
+        button['state'] = state
 
 def run():
     if running:
-        # print('blah')
-        # Read Raw data
-
         readArduino = ser2.readline()
-        print(readArduino)
-#          time.sleep(0.5)
+        trigger_str = readArduino.decode()
+        if readArduino.decode() != 'Homing done!':
+            trigger_list = trigger_str.split()
+            cbot_pitch, cbot_yaw = trigger_list
+            cbot_pitch_text.set(cbot_pitch)
+            cbot_yaw_text.set(cbot_yaw)
+        else:
+            change_button_state((change_manual_buttons + jevois_buttons + change_pattern_buttons), 'normal')
+    # time.sleep(0.5)
                 
     if not running:
         print("Program not running")
  
     # after 1 s, call scanning again,  1/2 s = 500
     root.after(2, run)
-
     
 ### WIDGETS ###
 '''
@@ -258,48 +214,30 @@ joystick_on = b'<' + b'J' + b'S' + b'1' + b'>'
 joystick_off = b'<' + b'J' + b'S' + b'0' + b'>'
 
 circle_on = b'<' + b'C' + b'P' + b'1' + b'>'
-circle_off = b'<' + b'C' + b'P' + b'0' + b'>'
 square_on = b'<' + b'S' + b'P' + b'1' + b'>'
-square_off = b'<' + b'S' + b'P' + b'0' + b'>'
 ribbon_on = b'<' + b'R' + b'P' + b'1' + b'>'
 
-run_on = lambda: [set_arduino_mode(manual_on),
-                  manual_move_motors(position1, position2)]
+mode_on_triggers = [manual_on,                   # 0
+                    object_tracing_on,           # 1
+                    pattern_on,                  # 2
+                    joystick_on]                 # 3
 
-pattern_on = lambda: [set_arduino_mode(circle_on),
-                      set_arduino_mode(square_on)]
-        
-close_manual_all = lambda: [close_tab(1),
-                            set_arduino_mode(manual_off),
-                            set_arduino_mode(object_tracing_off),
-                            set_arduino_mode(pattern_off),
-                            set_arduino_mode(joystick_off),
-                            set_arduino_mode(circle_off),
-                            set_arduino_mode(square_off)]
+clear_triggers = [manual_off,                    # 0
+                  object_tracing_off,            # 1
+                  pattern_off,                   # 2
+                  joystick_off]                  # 3
 
-close_object_all = lambda: [close_tab(2),
-                            set_arduino_mode(manual_off),
-                            set_arduino_mode(object_tracing_off),
-                            set_arduino_mode(pattern_off),
-                            set_arduino_mode(joystick_off),
-                            set_arduino_mode(circle_off),
-                            set_arduino_mode(square_off)]
+jevois_triggers = [jevois_calibration_arduino,   # 0
+                   jevois_target_arduino,        # 1
+                   jevois_obstacle_arduino,      # 2
+                   jevois_green_arduino,         # 3
+                   jevois_blue_arduino,          # 4
+                   jevois_red_arduino]           # 5
 
-close_pattern_all = lambda: [close_tab(3),
-                             set_arduino_mode(manual_off),
-                             set_arduino_mode(object_tracing_off),
-                             set_arduino_mode(pattern_off),
-                             set_arduino_mode(joystick_off),
-                             set_arduino_mode(circle_off),
-                             set_arduino_mode(square_off)]
-        
-all_off = lambda: [set_arduino_mode(manual_off), 
-                   set_arduino_mode(object_tracing_off),
-                   set_arduino_mode(pattern_off),
-                   set_arduino_mode(joystick_off),
-                   set_arduino_mode(circle_off),
-                   set_arduino_mode(square_off)]
-
+pattern_triggers = [circle_on,                   # 0
+                    square_on,                   # 1
+                    ribbon_on]                   # 2
+  
 # GLOBAL MODE TAB WIDGET SIZING #
 title_rel_height = 0.08
 title_rel_width = 0.95
@@ -336,21 +274,21 @@ select_mode_label.place(relx=0.5, rely=tab_title_rely,
 # manual mode
 manual_button = Button(mode_selection_tab, text='Manual Mode',
                        font=lite_widget_font, bg=DARK_BG, fg=WITE_BG,
-                       command = lambda:show_tab(manual_tab, 'Manual Mode', manual_on))
+                       command = lambda:show_tab(manual_tab, 'Manual Mode', clear_triggers))
 manual_button.place(relx=0.15, rely=mode_sel_rely,
                     relheight=mode_sel_relheight, relwidth=mode_sel_relwidth)
 
 # object tracing mode
 object_trace_button = Button(mode_selection_tab, text = 'Object Tracing Mode',
                              font = lite_widget_font, bg=DARK_BG, fg=WITE_BG,
-                             command = lambda: show_tab(object_tracing_tab, 'Object Tracing Mode', object_tracing_on))
+                             command = lambda: show_tab(object_tracing_tab, 'Object Tracing Mode', mode_on_triggers[1]))
 object_trace_button.place(relx = 0.4, rely = mode_sel_rely,
                           relheight = mode_sel_relheight, relwidth = mode_sel_relwidth)
 
 # pattern mode
 pattern_button = Button(mode_selection_tab, text = 'Pattern Mode',
                         font = lite_widget_font, bg=DARK_BG, fg=WITE_BG,
-                        command = lambda: show_tab(pattern_tab, 'Pattern Mode', pattern_on))
+                        command = lambda: show_tab(pattern_tab, 'Pattern Mode', mode_on_triggers[2]))
 pattern_button.place(relx = 0.65, rely = mode_sel_rely,
                      relheight = mode_sel_relheight, relwidth = mode_sel_relwidth)
 
@@ -379,13 +317,13 @@ exit_gui_button.place(rely=0.9,
 
 manual_title = Label(manual_tab, text = 'Manual Mode',
                           font = lite_widget_font, bg=DARK_BG, fg=WITE_BG)
-manual_title.place(relx = 0.5, rely = tab_title_rely,
+manual_title.place(relx=0.5, rely = tab_title_rely,
                    relheight = title_rel_height, relwidth = title_rel_width,
                    anchor = 'n')
-close_manual_tab = Button(manual_tab, text = 'X',
-                      fg = 'white', bg = 'red',
-                      font = lite_widget_font,
-                      command = close_manual_all)
+close_manual_tab = Button(manual_tab, text='X',
+                      fg='white', bg='red',
+                      font=lite_widget_font,
+                      command=lambda:[close_tab(1, clear_triggers)])
 close_manual_tab.place(relx = close_tab_relx,
                        relheight = close_rel_height, relwidth = close_rel_width)
 exit_gui_from_manual = tk.Button(manual_tab, text = "Exit GUI", 
@@ -393,16 +331,10 @@ exit_gui_from_manual = tk.Button(manual_tab, text = "Exit GUI",
                                  command = close_window)
 exit_gui_from_manual.place(relx = 0.02, rely = 0.88,
                       relheight = 0.1, relwidth = 0.2)
-homing_from_manual = Button(manual_tab, text='Home',
-                            font=lite_widget_font, 
-                            bg=LITE_BG, fg=WITE_BG,
-                            command=lambda:set_arduino_mode(home))
-homing_from_manual.place(relx=x_homing, rely=y_homing,
-                         relheight=h_homing, relwidth=w_homing)
 clear_modes_from_manual = Button(manual_tab, text='Clear',
                                  font=lite_widget_font,
                                  bg=LITE_BG, fg=WITE_BG,
-                                 command=all_off)
+                                 command=lambda:set_arduino_mode(clear_triggers))
 clear_modes_from_manual.place(relx=x_clear, rely=y_clear,
                               relheight=h_clear, relwidth=w_clear)
 
@@ -524,7 +456,8 @@ h_run = 0.1
 
 run_button = Button(manual_tab, text='Run',
                     font=lite_widget_font, bg='#b3ffb3', fg='black',
-                    command = run_on)
+                    command = lambda: [set_arduino_mode(mode_on_triggers[0]),
+                                       manual_move_motors(position1, position2)])
 run_button.place (relx=x_run, rely=y_run, 
                   relwidth=w_run, relheight=h_run)
 
@@ -549,6 +482,15 @@ off_button.place (relx=x_joystick, rely=y_off,
                   relwidth=w_joystick, relheight=h_joystick,
                   anchor = 'n')
 
+change_manual_buttons = [run_button, on_button, off_button]
+
+homing_from_manual = Button(manual_tab, text='Home',
+                            font=lite_widget_font, 
+                            bg=LITE_BG, fg=WITE_BG,
+                            command=lambda:[set_arduino_mode(home), change_button_state(change_manual_buttons, 'disabled')])
+homing_from_manual.place(relx=x_homing, rely=y_homing,
+                         relheight=h_homing, relwidth=w_homing)
+
 # imu axis labels
 Aw_axis = 0.07
 Ah_position = 0.05
@@ -556,9 +498,9 @@ Ax_axis = 0.675
 
 # the arm's pitch is about the IMU's y axis
 # the arm's roll is about the IMU's x axis
-roll_label = Label(manual_tab, text = 'roll:​', 
+yaw_label = Label(manual_tab, text = 'yaw:​', 
                     font = lite_widget_font, bg=LITE_BG, fg=WITE_BG)
-roll_label.place(relx = Ax_axis, rely = y_target1, 
+yaw_label.place(relx = Ax_axis, rely = y_target1, 
                   relwidth = Aw_axis, relheight = Ah_position)
 
 pitch_label = Label(manual_tab, text = 'pitch:​', 
@@ -592,9 +534,9 @@ object_title.place(relx=0.5, rely=tab_title_rely,
                    relheight=title_rel_height, relwidth=title_rel_width,
                    anchor='n')
 close_object_tab = Button(object_tracing_tab, text = 'X',
-                      fg='white', bg='red',
-                      font=lite_widget_font,
-                      command = close_object_all)
+                          fg='white', bg='red',
+                          font=lite_widget_font,
+                          command=lambda:close_tab(2, clear_triggers))
 close_object_tab.place(relx=close_tab_relx, #rely = close_tab_rely,
                    relheight=close_rel_height, relwidth=close_rel_width)
 
@@ -603,16 +545,10 @@ exit_gui_from_object = tk.Button(object_tracing_tab, text="Exit GUI",
                                  command=close_window)
 exit_gui_from_object.place(relx=0.02, rely=0.88,
                       relheight=0.1, relwidth=0.2)
-homing_from_object = Button(object_tracing_tab, text='Home',
-                            font=lite_widget_font, 
-                            bg=LITE_BG, fg=WITE_BG,
-                            command=lambda:self.set_arduino_mode(home))
-homing_from_object.place(relx=x_homing, rely=y_homing,
-                            relheight=h_homing, relwidth=w_homing)
 clear_modes_from_object = Button(object_tracing_tab, text='Clear',
                                  font=lite_widget_font,
                                  bg=LITE_BG, fg=WITE_BG,
-                                 command=all_off)
+                                 command=lambda:set_arduino_mode(clear_triggers))
 clear_modes_from_object.place(relx=x_clear, rely=y_clear,
                               relheight=h_clear, relwidth=w_clear)
 
@@ -676,6 +612,17 @@ blue_button = Button(object_tracing_tab, text='blue', font=lite_widget_font,
 blue_button.place(relx=x_blue_target, rely=y_color, 
                   relheight=h_jevois, relwidth=w_jevois)
 
+jevois_buttons = [calibration_button, obstacle_button, target_button, 
+                  red_button, green_button, blue_button]
+
+homing_from_object = Button(object_tracing_tab, text='Home',
+                            font=lite_widget_font, 
+                            bg=LITE_BG, fg=WITE_BG,
+                            command=lambda:[set_arduino_mode(home),
+                                            change_button_state(jevois_buttons, 'disabled')])
+homing_from_object.place(relx=x_homing, rely=y_homing,
+                            relheight=h_homing, relwidth=w_homing)
+
 #---# PATTERN TAB #---#
 pattern_title = Label(pattern_tab, text='Pattern Mode',
                      font=lite_widget_font, bg=DARK_BG, fg=WITE_BG)
@@ -686,7 +633,7 @@ pattern_title.place(relx=0.5, rely=tab_title_rely,
 close_pattern_tab = Button(pattern_tab, text='X',
                            fg = 'white', bg = 'red',
                            font=lite_widget_font,
-                           command = close_pattern_all)
+                           command = lambda:[close_tab(3, clear_triggers)])
 close_pattern_tab.place(relx=close_tab_relx,
                    relheight=close_rel_height, relwidth=close_rel_width)
 
@@ -695,16 +642,10 @@ exit_gui_from_pattern = tk.Button(pattern_tab, text="Exit GUI",
                                   command=close_window)
 exit_gui_from_pattern.place(relx=0.02, rely=0.88,
                             relheight=0.1, relwidth=0.2)
-homing_from_pattern = Button(pattern_tab, text='Home',
-                            font=lite_widget_font, 
-                            bg=LITE_BG, fg=WITE_BG,
-                            command=lambda:self.set_arduino_mode(home))
-homing_from_pattern.place(relx=x_homing, rely=y_homing,
-                            relheight=h_homing, relwidth=w_homing)
 clear_modes_from_pattern = Button(manual_tab, text='Clear',
                                  font=lite_widget_font,
                                  bg=LITE_BG, fg=WITE_BG,
-                                 command=all_off)
+                                 command=lambda:set_arduino_mode(clear_triggers))
 clear_modes_from_pattern.place(relx=x_clear, rely=y_clear,
                               relheight=h_clear, relwidth=w_clear)
 
@@ -719,53 +660,36 @@ on_off_space = 0.15
 y_on = 0.2
 y_off = y_on + on_off_space
 
-toggle_circle_square = Label(pattern_tab, text='Run Circle/Square:', 
-                       font=dark_widget_font, 
-                       bg=DARK_BG, fg=WITE_BG)
-toggle_circle_square.place(relx=x_pattern, rely=y_on,
-                     relheight=h_jevois, relwidth=w_jevois)
+mode_label = tk.Label(pattern_tab, 
+                      text='select pattern:', font=lite_widget_font, 
+                      bg=DARK_BG, fg=WITE_BG)
+mode_label.place(relx=x_category, rely=y_mode, 
+                 relheight=h_jevois, relwidth=w_jevois)
 
-toggle_ribbon = Label(pattern_tab, text='Run Ribbon:', 
-                       font=dark_widget_font, 
-                       bg=DARK_BG, fg=WITE_BG)
-toggle_ribbon.place(relx=x_pattern, rely=y_on,
-                     relheight=h_jevois, relwidth=w_jevois)
+circle_button = Button(pattern_tab, text='circle', font=lite_widget_font,
+                       command=lambda: set_arduino_mode(pattern_triggers[0]))
+circle_button.place(relx = x_red_calibration, rely=y_mode, 
+                    relheight=h_jevois, relwidth=w_jevois)
 
-circle_square_on = Button(pattern_tab, text='Run', 
-                        font=lite_widget_font, bg=LITE_BG,
-                        command=pattern_on)
-circle_square_on.place(relx=x_circle, rely=y_on, 
-                     relheight=h_jevois, relwidth=w_jevois)
+square_button = Button(pattern_tab, text='square', font=lite_widget_font,
+                       command=lambda: set_arduino_mode(pattern_triggers[1]))
+square_button.place(relx=x_green_obstacle, rely=y_mode, 
+                    relheight=h_jevois, relwidth=w_jevois)
 
-ribbon_on = Button(pattern_tab, text='Run Ribbon', 
-                        font=lite_widget_font, bg=LITE_BG,
-                        command=lambda: set_arduino_mode(ribbon_on))
-ribbon_on.place(relx=x_square, rely=y_on, 
-                     relheight=h_jevois, relwidth=w_jevois)
+ribbon_button = Button(pattern_tab, text='ribbon', font=lite_widget_font,
+                       command=lambda: set_arduino_mode(pattern_triggers[2]))
+ribbon_button.place(relx=x_blue_target, rely=y_mode, 
+                    relheight=h_jevois, relwidth=w_jevois) 
 
-# circle_mode_on = Button(pattern_tab, text='circle on', 
-#                         font=lite_widget_font, bg=LITE_BG,
-#                         command=lambda: set_arduino_mode(circle_on))
-# circle_mode_on.place(relx=x_circle, rely=y_on, 
-#                      relheight=h_jevois, relwidth=w_jevois)
+change_pattern_buttons = [circle_button, square_button, ribbon_button]
 
-# circle_mode_off = Button(pattern_tab, text='circle off', font=lite_widget_font, 
-#                          bg=DARK_BG, fg=WITE_BG,
-#                          command=lambda: set_arduino_mode(circle_off))
-# circle_mode_off.place(relx=x_circle, rely=y_off, 
-#                       relheight=h_jevois, relwidth=w_jevois)
-
-# square_mode_on = Button(pattern_tab, text='square on', 
-#                         font=lite_widget_font, bg=LITE_BG,
-#                         command=lambda: set_arduino_mode(square_on))
-# square_mode_on.place(relx=x_square, rely=y_on, 
-#                      relheight=h_jevois, relwidth=w_jevois)
-
-# square_mode_off = Button(pattern_tab, text='square off', font=lite_widget_font, 
-#                          bg=DARK_BG, fg=WITE_BG,
-#                          command=lambda: set_arduino_mode(square_off))
-# square_mode_off.place(relx=x_square, rely=y_off, 
-#                       relheight=h_jevois, relwidth=w_jevois)
+homing_from_pattern = Button(pattern_tab, text='Home',
+                            font=lite_widget_font, 
+                            bg=LITE_BG, fg=WITE_BG,
+                            command=lambda:[set_arduino_mode(home),
+                                            change_button_state(change_pattern_buttons, 'disabled')])
+homing_from_pattern.place(relx=x_homing, rely=y_homing,
+                            relheight=h_homing, relwidth=w_homing)
 
 root.after(1000, run) # after 1 s, call run()
 root.mainloop()
