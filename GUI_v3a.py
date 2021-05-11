@@ -1,11 +1,14 @@
 # GUI_v3a.py
 '''
 changes made:
-- calculate pitch and roll
-    source: https://roboticsclubiitk.github.io/2017/12/21/Beginners-Guide-to-IMU.html
-- add complimentary filter
 - add tabs
+- add circle/square/ribbon patterns
+- add clear modes feature
+- add homing feature
 '''
+
+# show jevois camera: $ ffplay /dev/video0 -pixel_format yuyv422 -video_size 640x240
+
 
 import time
 import smbus
@@ -23,16 +26,16 @@ import tkinter.font
 # mpu6050 = MPU6050(board.I2C())           # base accel & gyro sensor
 
 # Serial - Jevois
-# jevois_baudrate = 115200
-# com_port1 = '/dev/ttyAMA0'
-# ser1 = serial.Serial(port = com_port1, baudrate = jevois_baudrate,
-#                      parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
-#                      bytesize=serial.EIGHTBITS, timeout=1)
+jevois_baudrate = 115200
+com_port1 = '/dev/ttyACM1'
+ser1 = serial.Serial(port = com_port1, baudrate = jevois_baudrate,
+                     parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
+                     bytesize=serial.EIGHTBITS, timeout=1)
 
 # Serial - Arduino
-# arduino_baudrate = 115200 
-# com_port2 = '/dev/ttyACM0'
-# ser2 = serial.Serial(port = com_port2, baudrate = arduino_baudrate, timeout = 0)    # my port = '/dev/ttyACM0'
+arduino_baudrate = 115200 
+com_port2 = '/dev/ttyACM0'
+ser2 = serial.Serial(port = com_port2, baudrate = arduino_baudrate, timeout = 0)    # my port = '/dev/ttyACM0'
 
 ### GUI DEFINITIONS ###
 # HEIGHT = 500   # pixels
@@ -96,35 +99,40 @@ running = True # global flag
 def close_window():
     root.destroy()
 
-def send_to_jevois_program(cmd):
-    """Send commands to the Jevois program to control the camera
+# def send_to_jevois_program(cmd):
+#     """Send commands to the Jevois program to control the camera
 
-    Args:
-        cmd ([string]): the command to be sent to the jevois program terminal
-    """
-    print(cmd)
-    # ser2.write((cmd + '\n').esncode())
-    time.sleep(1)
-    print('send: ' + cmd)
+#     Args:
+#         cmd ([string]): the command to be sent to the jevois program terminal
+#     """
+#     print(cmd)
+#     # ser2.write((cmd + '\n').encode())
+#     time.sleep(1)
+#     print('send: ' + cmd)
     # print('Message was sent to Jevois!')
 
-def trace_trace_move_motors(x, y):
-    global newx_position, newy_position
+# def trace_trace_move_motors(x, y):
+#     global newx_position, newy_position
     
-    x_to_arduino = b'<' + b'J' + b'x' + str(x).encode() + b'>'
-    y_to_arduino = b'<' + b'J' + b'y' + str(y).encode() + b'>'
-    print('move to position 1:', x_to_arduino)
-    print('move to position 2:', y_to_arduino)
+#     x_to_arduino = b'<' + b'J' + b'x' + str(x).encode() + b'>'
+#     y_to_arduino = b'<' + b'J' + b'y' + str(y).encode() + b'>'
+#     print('move to position 1:', x_to_arduino)
+#     print('move to position 2:', y_to_arduino)
     
     # serialread2 = ser2.readline()
     # print(serialread2)
     
     # ser2.write(x_to_arduino + y_to_arduino)
 
-def set_arduino_mode(trigger):
-    send_char = trigger
-    print('arduino mode: ' + str(trigger))
-    # ser2.write(send_char)
+def set_arduino_mode(triggers):
+    if type(triggers) == list:
+        for trigger in triggers:
+            send_char = trigger
+            print('set arduino mode: ' + str(trigger))
+            ser2.write(trigger)
+    elif type(triggers) == bytes:
+        print('set arduino mode: ' + str(triggers))
+        ser2.write(triggers)
     
 def manual_move_motors(motor1, motor2):
     move_motor1 = b'<' + b'1' + b'p' + motor1.get().encode() + b'>'
@@ -147,39 +155,48 @@ def manual_move_motors(motor1, motor2):
 
 def show_tab(mode_frame, mode_selection, mode):
     my_notebook.add(mode_frame, text = mode_selection)
-    print('added tab')
+    # print('added tab')
     my_notebook.tab(0, state='disabled')
     print(mode)
     set_arduino_mode(mode)
     
 def close_tab(i_tab, clear_modes):
     my_notebook.hide(i_tab)
-    print('closed tab')
+    # print('closed tab')
     set_arduino_mode(clear_modes)
     
     my_notebook.tab(0, state='normal')
     my_notebook.select(0)
     
 def change_button_state(buttons, state):
+    # print(buttons)
     for button in buttons:
+        # print('{} state = {}'.format(button,state))
         button['state'] = state
 
 def run():
     if running:
         readArduino = ser2.readline()
         trigger_str = readArduino.decode()
-        if readArduino.decode() != 'Homing done!':
-            trigger_list = trigger_str.split()
-            cbot_pitch, cbot_yaw = trigger_list
-            cbot_pitch_text.set(cbot_pitch)
-            cbot_yaw_text.set(cbot_yaw)
-        else:
-            change_button_state((change_manual_buttons + jevois_buttons + change_pattern_buttons), 'normal')
-    # time.sleep(0.5)
-                
+        if readArduino != b'' and readArduino != b'-':
+            if 'Homing done!' not in trigger_str and 'Pattern done!' not in trigger_str:
+                trigger_list = trigger_str.split()
+                trigger_list = trigger_str.split()
+                print(trigger_list)
+                if len(trigger_list) == 2:
+                    cbot_pitch, cbot_yaw = trigger_list
+                    cbot_pitch_text.set(cbot_pitch)
+                    cbot_yaw_text.set(cbot_yaw)
+            elif 'Homing done!' in trigger_str:
+                print('\thoming is done')
+                change_button_state((change_manual_buttons + jevois_buttons + change_pattern_buttons), 'normal')
+            elif 'Pattern done!' in trigger_str:
+                print('\tpattern is done')
+                change_button_state(change_pattern_buttons, 'normal')
+    # time.sleep(0.5)    
     if not running:
         print("Program not running")
- 
+
     # after 1 s, call scanning again,  1/2 s = 500
     root.after(2, run)
     
@@ -487,7 +504,8 @@ change_manual_buttons = [run_button, on_button, off_button]
 homing_from_manual = Button(manual_tab, text='Home',
                             font=lite_widget_font, 
                             bg=LITE_BG, fg=WITE_BG,
-                            command=lambda:[set_arduino_mode(home), change_button_state(change_manual_buttons, 'disabled')])
+                            command=lambda:[set_arduino_mode(clear_triggers + [home]), 
+                                            change_button_state(change_manual_buttons, 'disabled')])
 homing_from_manual.place(relx=x_homing, rely=y_homing,
                          relheight=h_homing, relwidth=w_homing)
 
@@ -579,17 +597,17 @@ x_green_obstacle = x_red_calibration + mode_space
 x_blue_target = x_green_obstacle + mode_space
 
 calibration_button = Button(object_tracing_tab, text='calibration', font=lite_widget_font,
-                            command=lambda: set_arduino_mode(jevois_calibration_arduino))
+                            command=lambda: set_arduino_mode([jevois_triggers[0], mode_on_triggers[1]]))
 calibration_button.place(relx = x_red_calibration, rely=y_mode, 
                          relheight=h_jevois, relwidth=w_jevois)
 
 obstacle_button = Button(object_tracing_tab, text='obstacle', font=lite_widget_font,
-                         command=lambda: set_arduino_mode(jevois_obstacle_arduino))
+                         command=lambda: set_arduino_mode([jevois_triggers[2], mode_on_triggers[1]]))
 obstacle_button.place(relx=x_green_obstacle, rely=y_mode, 
                       relheight=h_jevois, relwidth=w_jevois)
 
 target_button = Button(object_tracing_tab, text='target', font=lite_widget_font,
-                       command=lambda: set_arduino_mode(jevois_target_arduino))
+                       command=lambda: set_arduino_mode([jevois_triggers[1], mode_on_triggers[1]]))
 target_button.place(relx=x_blue_target, rely=y_mode, 
                     relheight=h_jevois, relwidth=w_jevois)         
 
@@ -618,7 +636,7 @@ jevois_buttons = [calibration_button, obstacle_button, target_button,
 homing_from_object = Button(object_tracing_tab, text='Home',
                             font=lite_widget_font, 
                             bg=LITE_BG, fg=WITE_BG,
-                            command=lambda:[set_arduino_mode(home),
+                            command=lambda:[set_arduino_mode(clear_triggers + [home]), 
                                             change_button_state(jevois_buttons, 'disabled')])
 homing_from_object.place(relx=x_homing, rely=y_homing,
                             relheight=h_homing, relwidth=w_homing)
@@ -642,7 +660,7 @@ exit_gui_from_pattern = tk.Button(pattern_tab, text="Exit GUI",
                                   command=close_window)
 exit_gui_from_pattern.place(relx=0.02, rely=0.88,
                             relheight=0.1, relwidth=0.2)
-clear_modes_from_pattern = Button(manual_tab, text='Clear',
+clear_modes_from_pattern = Button(pattern_tab, text='Clear',
                                  font=lite_widget_font,
                                  bg=LITE_BG, fg=WITE_BG,
                                  command=lambda:set_arduino_mode(clear_triggers))
@@ -667,17 +685,20 @@ mode_label.place(relx=x_category, rely=y_mode,
                  relheight=h_jevois, relwidth=w_jevois)
 
 circle_button = Button(pattern_tab, text='circle', font=lite_widget_font,
-                       command=lambda: set_arduino_mode(pattern_triggers[0]))
+                       command=lambda: [set_arduino_mode(pattern_triggers[0]),
+                                        change_button_state(change_pattern_buttons, 'disabled')])
 circle_button.place(relx = x_red_calibration, rely=y_mode, 
                     relheight=h_jevois, relwidth=w_jevois)
 
 square_button = Button(pattern_tab, text='square', font=lite_widget_font,
-                       command=lambda: set_arduino_mode(pattern_triggers[1]))
+                       command=lambda: [set_arduino_mode(pattern_triggers[1]),
+                                        change_button_state(change_pattern_buttons, 'disabled')])
 square_button.place(relx=x_green_obstacle, rely=y_mode, 
                     relheight=h_jevois, relwidth=w_jevois)
 
 ribbon_button = Button(pattern_tab, text='ribbon', font=lite_widget_font,
-                       command=lambda: set_arduino_mode(pattern_triggers[2]))
+                       command=lambda: [set_arduino_mode(pattern_triggers[2]),
+                                        change_button_state(change_pattern_buttons, 'disabled')])
 ribbon_button.place(relx=x_blue_target, rely=y_mode, 
                     relheight=h_jevois, relwidth=w_jevois) 
 
@@ -686,7 +707,7 @@ change_pattern_buttons = [circle_button, square_button, ribbon_button]
 homing_from_pattern = Button(pattern_tab, text='Home',
                             font=lite_widget_font, 
                             bg=LITE_BG, fg=WITE_BG,
-                            command=lambda:[set_arduino_mode(home),
+                            command=lambda:[set_arduino_mode(clear_triggers + [home]), 
                                             change_button_state(change_pattern_buttons, 'disabled')])
 homing_from_pattern.place(relx=x_homing, rely=y_homing,
                             relheight=h_homing, relwidth=w_homing)
