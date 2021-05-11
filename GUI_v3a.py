@@ -5,10 +5,11 @@ changes made:
 - add circle/square/ribbon patterns
 - add clear modes feature
 - add homing feature
+- grey out pattern buttons while in motion
+- added docstrings
 '''
 
 # show jevois camera: $ ffplay /dev/video0 -pixel_format yuyv422 -video_size 640x240
-
 
 import time
 import smbus
@@ -125,6 +126,12 @@ def close_window():
     # ser2.write(x_to_arduino + y_to_arduino)
 
 def set_arduino_mode(triggers):
+    """Sends a byte to the arduino to trigger a desired robot mode
+
+    Args:
+        triggers ([list or bytes]): contains the bytes to be sent to the arduino
+    """
+    
     if type(triggers) == list:
         for trigger in triggers:
             send_char = trigger
@@ -154,6 +161,13 @@ def manual_move_motors(motor1, motor2):
 #     set_arduino_mode(char)
 
 def show_tab(mode_frame, mode_selection, mode):
+    """Makes a GUI tab visible and accesible
+
+    Args:
+        mode_frame (tkinter.Frame'): specifies which frame (tab) to show
+        mode_selection (string): the text to be displayed as the tab's label
+        mode (list): bytes that are sent to the arduino to trigger a desired mode
+    """
     my_notebook.add(mode_frame, text = mode_selection)
     # print('added tab')
     my_notebook.tab(0, state='disabled')
@@ -161,6 +175,16 @@ def show_tab(mode_frame, mode_selection, mode):
     set_arduino_mode(mode)
     
 def close_tab(i_tab, clear_modes):
+    """closes a tab
+
+    Args:
+        i_tab (int): specifies which tab to close
+                     0 = Mode Selection Tab
+                     1 = Manual Mode Tab
+                     2 = Object Tracing Tab
+                     3 = Pattern Tab
+        clear_modes (list): the list of triggers that turn off arduino - robot modes
+    """
     my_notebook.hide(i_tab)
     # print('closed tab')
     set_arduino_mode(clear_modes)
@@ -169,12 +193,24 @@ def close_tab(i_tab, clear_modes):
     my_notebook.select(0)
     
 def change_button_state(buttons, state):
+    """enables or disables a button
+
+    Args:
+        buttons (tkinter.Button): the button widget to that will be enabled or disabled
+        state (string): identifies the state to put a button into, such as 'disabled' or 'normal'
+    """
     # print(buttons)
     for button in buttons:
         # print('{} state = {}'.format(button,state))
         button['state'] = state
 
 def run():
+    """Reads serial data from the arduino.
+    
+       If the arduino is sending IMU data, it is displayed in the Manual Mode tab alongside the pitch and yaw labels.
+       When a 'Home' button is pressed, all other action buttons are disabled until the Arduino sends 'Homing is done!'
+       When the robot is performing a pattern, all other pattern buttons are disabled until the Arduino sends 'Pattern is done!'
+    """
     if running:
         readArduino = ser2.readline()
         trigger_str = readArduino.decode()
